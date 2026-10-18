@@ -1,9 +1,9 @@
 import Foundation
 
-// Kotlin's coerceIn, which the ported engine uses everywhere.
+// Kotlin's coerceIn, which the ported engine uses everywhere (and the apps).
 extension Comparable {
     @inline(__always)
-    func clamped(_ lower: Self, _ upper: Self) -> Self { min(max(self, lower), upper) }
+    public func clamped(_ lower: Self, _ upper: Self) -> Self { min(max(self, lower), upper) }
 }
 
 // Kotlin's roundToInt / Math.round: ties go up (towards +infinity); Swift's rounded() takes them away from zero.

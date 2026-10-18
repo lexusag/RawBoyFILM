@@ -44,24 +44,59 @@ enum class PresetGroup(val key: String, val label: String, val fields: List<Stri
 
 /**
  * A named set of slider values. [values] holds only the fields of [groups] (by DevelopParams property name);
- * applying it overrides those and leaves everything else as it is. [id] is local to one device.
+ * applying it overrides those and leaves everything else as it is. [id] is local to one device. [lens] is the lens
+ * name of the photo it was saved on ("" = the file names none), null for presets from before it was recorded.
  */
 data class Preset(
     val id: String,
     val name: String,
     val groups: Set<PresetGroup>,
     val values: Map<String, Any?>,
-)
+    val lens: String? = null,
+) {
+    /**
+     * A lens preset holds the Lens group alone: RawBoy Auto keeps it for photos taken with [lens] and applies it on top
+     * of their look (or RawBoy preset), changing only the lens corrections.
+     */
+    val isLensPreset: Boolean get() = groups == setOf(PresetGroup.LENS)
+}
 
 /** Capturing, applying and the JSON file format of [Preset]s (mirrored in web's Presets.ts). */
 object Presets {
     const val FORMAT = "rawboy-preset"
     const val VERSION = 1
 
-    fun capture(name: String, params: DevelopParams, groups: Set<PresetGroup>): Preset {
+    fun capture(name: String, params: DevelopParams, groups: Set<PresetGroup>, lens: String? = null): Preset {
         val values = LinkedHashMap<String, Any?>()
         for (g in PresetGroup.entries) if (g in groups) for (f in g.fields) values[f] = get(params, f)
-        return Preset(newId(), name.trim(), groups, values)
+        return Preset(newId(), name.trim(), groups, values, lens?.trim())
+    }
+
+    /**
+     * A lens preset ([Preset.isLensPreset]) of [params]' lens corrections for the lens named [lens], called after the
+     * lens ("Lens preset" when the file names none).
+     */
+    fun captureLens(params: DevelopParams, lens: String): Preset =
+        capture(lens.trim().ifBlank { "Lens preset" }, params, setOf(PresetGroup.LENS), lens)
+
+    /** Whether [preset] was made for the lens named [lens]: same name, ignoring case and outer spaces. */
+    fun isFor(preset: Preset, lens: String): Boolean = preset.lens?.trim().equals(lens.trim(), ignoreCase = true)
+
+    /**
+     * The lens preset among [presets] for the lens named [lens] (the last one when there are several), else the last
+     * one that names no lens (saved before RawBoy recorded it), which stands for any lens; null if none.
+     */
+    fun lensPresetFor(presets: List<Preset>, lens: String): Preset? =
+        presets.lastOrNull { it.isLensPreset && isFor(it, lens) } ?: presets.lastOrNull { it.isLensPreset && it.lens == null }
+
+    /**
+     * [presets] with [lensPreset] in place of the lens preset for the same lens (or the same missing lens), keeping its
+     * id and position; else added at the end.
+     */
+    fun putLensPreset(presets: List<Preset>, lensPreset: Preset): List<Preset> {
+        val old = presets.lastOrNull { it.isLensPreset && it.lens?.trim().equals(lensPreset.lens?.trim(), ignoreCase = true) }
+            ?: return presets + lensPreset
+        return presets.map { if (it === old) lensPreset.copy(id = old.id) else it }
     }
 
     /** [params] with the preset's stored fields; fields it doesn't hold (or doesn't know) stay. */
@@ -74,6 +109,7 @@ object Presets {
         put("format", FORMAT)
         put("version", VERSION)
         put("name", p.name)
+        p.lens?.let { put("lens", it) }
         put("groups", JSONArray(PresetGroup.entries.filter { it in p.groups }.map { it.key }))
         put(
             "values",
@@ -134,7 +170,8 @@ object Presets {
         }
         // Presets from before the separate colour denoise had one denoise for both: colour follows it.
         if ("denoise" in values && "colorDenoise" in known && !v.has("colorDenoise")) values["colorDenoise"] = null
-        return Preset(newId(), o.optString("name").ifBlank { "Preset" }, groups, values)
+        val lens = if (o.has("lens") && !o.isNull("lens")) o.optString("lens") else null
+        return Preset(newId(), o.optString("name").ifBlank { "Preset" }, groups, values, lens)
     }
 
     private fun get(p: DevelopParams, field: String): Any? = when (field) {

@@ -20,10 +20,13 @@ public enum AutoAnalysis {
     /**
      * Decodes [url], keeps its small whole-image copies and works out the auto develop.
      * Blocking and memory hungry (a full-resolution decode): call from a background task, one at a time.
+     * [onPreview], if given, gets the detail view's preview (PhotoSession.previewMaxDimension) made from the same
+     * decode, so RawBoy Auto can show the photo before decoding it again.
      */
-    public static func analyze(_ url: URL) throws -> Analysis {
+    public static func analyze(_ url: URL, onPreview: ((PreviewImage) -> Void)? = nil) throws -> Analysis {
         // The raw is closed before segmentation, which needs only the 512 px copy.
         let img = try RawImage.open(url: url)
+        onPreview?(img.createPreview(maxDimension: PhotoSession.previewMaxDimension))
         let copies = copiesOf(img)
         let info = Info.of(img, auto: true)
         img.close()

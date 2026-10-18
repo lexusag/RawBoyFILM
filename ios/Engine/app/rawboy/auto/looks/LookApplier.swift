@@ -111,6 +111,29 @@ public enum LookApplier {
     }
 
     /**
+     * A photo's whole develop: [preset] (a RawBoy preset, see [applyPreset]) or else [look] (see [apply]), then its lens
+     * preset ([Preset.isLensPreset], or nil), which changes only the lens corrections: the profile switch, distortion,
+     * vignette radius and vignetting. A look's own vignette stays on top of the lens preset's vignetting; a RawBoy
+     * preset's Lens group gives way to the lens preset.
+     */
+    public static func develop(
+        _ base: DevelopParams, look: Look, strength: Float, adjust: Adjustments, hasFace: Bool,
+        preset: Preset?, lensPreset: Preset?
+    ) -> DevelopParams {
+        let developed = preset.map { applyPreset(base, preset: $0, adjust: adjust) }
+            ?? apply(base, look: look, strength: strength, adjust: adjust, hasFace: hasFace)
+        guard let lensPreset else { return developed }
+        let lens = Presets.apply(lensPreset, base)
+        let lookVignette: Float = preset != nil ? 0 : developed.vignetteAmount - base.vignetteAmount
+        var d = developed
+        d.lensProfile = lens.lensProfile
+        d.lensDistortion = lens.lensDistortion
+        d.vignetteAmount = (lens.vignetteAmount + lookVignette).clamped(-100, 100)
+        d.vignetteMidpoint = lens.vignetteMidpoint
+        return d
+    }
+
+    /**
      * Positive [adjust] adds to the auto + look saturation; negative scales it towards -100, so the slider's bottom is
      * black and white whatever the auto develop and the look added (an offset left ~30% of the colour).
      */

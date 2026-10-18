@@ -36,11 +36,15 @@ object AutoAnalysis {
     /**
      * Decodes [uri], keeps its small whole-image copies and works out the auto develop.
      * Blocking and memory hungry (a full-resolution decode): call from a background thread,
-     * one at a time.
+     * one at a time. [onPreview], if given, gets the detail view's preview ([PhotoSession.PREVIEW_MAX_DIMENSION]) made
+     * from the same decode, so RawBoy Auto can show the photo before decoding it again.
      */
-    fun analyze(context: Context, uri: Uri): Analysis {
+    fun analyze(context: Context, uri: Uri, onPreview: ((PreviewImage) -> Unit)? = null): Analysis {
         // The raw is closed before segmentation, which needs only the 512 px copy.
-        val (copies, info) = RawImage.open(context, uri).use { img -> copiesOf(img) to Info.of(img, auto = true) }
+        val (copies, info) = RawImage.open(context, uri).use { img ->
+            onPreview?.invoke(img.createPreview(PhotoSession.PREVIEW_MAX_DIMENSION))
+            copiesOf(img) to Info.of(img, auto = true)
+        }
         return analyze(context, copies.first, copies.second, info, uri.toString())
     }
 

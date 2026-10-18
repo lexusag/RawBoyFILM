@@ -107,6 +107,33 @@ object LookApplier {
     }
 
     /**
+     * A photo's whole develop: [preset] (a RawBoy preset, see [applyPreset]) or else [look] (see [apply]), then its lens
+     * preset ([Preset.isLensPreset], or null), which changes only the lens corrections: the profile switch, distortion,
+     * vignette radius and vignetting. A look's own vignette stays on top of the lens preset's vignetting; a RawBoy
+     * preset's Lens group gives way to the lens preset.
+     */
+    fun develop(
+        base: DevelopParams,
+        look: Look,
+        strength: Float,
+        adjust: Adjustments,
+        hasFace: Boolean,
+        preset: Preset?,
+        lensPreset: Preset?,
+    ): DevelopParams {
+        val developed = if (preset != null) applyPreset(base, preset, adjust) else apply(base, look, strength, adjust, hasFace)
+        if (lensPreset == null) return developed
+        val lens = Presets.apply(lensPreset, base)
+        val lookVignette = if (preset != null) 0f else developed.vignetteAmount - base.vignetteAmount
+        return developed.copy(
+            lensProfile = lens.lensProfile,
+            lensDistortion = lens.lensDistortion,
+            vignetteAmount = (lens.vignetteAmount + lookVignette).coerceIn(-100f, 100f),
+            vignetteMidpoint = lens.vignetteMidpoint,
+        )
+    }
+
+    /**
      * Positive [adjust] adds to the auto + look saturation; negative scales it towards -100, so the slider's bottom is
      * black and white whatever the auto develop and the look added (an offset left ~30% of the colour).
      */
