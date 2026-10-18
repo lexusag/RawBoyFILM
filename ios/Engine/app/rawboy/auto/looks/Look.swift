@@ -64,31 +64,31 @@ public enum Looks {
     /** The auto develop alone (which already has a fine grain). */
     public static let natural = Look("natural", "Natural", nil)
     /** The default: suggested for portraits and everyday scenes. */
-    public static let portra400 = Look("portra400", "Portra 400", "Kodak Portra 400.cube",
+    public static let portra400 = Look("portra400", "Yellow Portrait 400", "Yellow Portrait 400.cube",
                                        grain: 20, bloom: 5, portraitRetouch: 20)
-    public static let portra800 = Look("portra800", "Portra 800", "Kodak Portra 800.cube",
+    public static let portra800 = Look("portra800", "Yellow Portrait 800", "Yellow Portrait 800.cube",
                                        grain: 35, bloom: 15, portraitRetouch: 20)
-    public static let ektar100 = Look("ektar100", "Ektar 100", "Kodak Ektar 100.cube", grain: 10, highpass: 10)
-    public static let gold200 = Look("gold200", "Gold 200", "Kodak Gold 200.cube", grain: 25, vignette: -10, warmth: 200)
-    public static let superia400 = Look("superia400", "Superia 400", "Fuji Superia X-Tra 400.cube", grain: 25)
-    public static let fuji400h = Look("fuji400h", "Fuji 400H", "Fuji Pro 400H.cube",
+    public static let ektar100 = Look("ektar100", "Yellow Vivid 100", "Yellow Vivid 100.cube", grain: 10, highpass: 10)
+    public static let gold200 = Look("gold200", "Yellow Warm 200", "Yellow Warm 200.cube", grain: 25, vignette: -10, warmth: 200)
+    public static let superia400 = Look("superia400", "Green Everyday 400", "Green Everyday 400.cube", grain: 25)
+    public static let fuji400h = Look("fuji400h", "Green Pastel 400", "Green Pastel 400.cube",
                                       grain: 20, bloom: 5, portraitRetouch: 20)
     /** Tungsten cinema film, the base of CineStill 800T. */
-    public static let vision3500t = Look("vision500t", "Vision3 500T", "Kodak Vision3 500T.cube", grain: 35, bloom: 20)
+    public static let vision3500t = Look("vision500t", "Yellow Cine 500T", "Yellow Cine 500T.cube", grain: 35, bloom: 20)
     /** Slide film: vivid colour, deep shadows. */
-    public static let velvia50 = Look("velvia50", "Velvia 50", "Fuji Velvia 50.cube", grain: 8, vignette: -10)
+    public static let velvia50 = Look("velvia50", "Green Vivid Slide 50", "Green Vivid Slide 50.cube", grain: 8, vignette: -10)
     public static let redscale = Look("redscale", "Redscale", "Redscale.png", contrast: 5, grain: 30, vignette: -15)
     /** Monochrome, classic: Tri-X on a normal paper grade. */
-    public static let trix400 = Look("trix400", "Tri-X 400", "Kodak Tri-X 400.cube", grain: 25, monochrome: true)
+    public static let trix400 = Look("trix400", "Yellow Mono 400", "Yellow Mono 400.cube", grain: 25, monochrome: true)
     /** Monochrome, Tri-X developed longer: harder and grainier. */
-    public static let trixPush = Look("trixpush", "Tri-X Push", "Kodak Tri-X 400 Push.cube", grain: 40, monochrome: true)
+    public static let trixPush = Look("trixpush", "Yellow Mono Push", "Yellow Mono Push.cube", grain: 40, monochrome: true)
     /** Monochrome, hard: pushed Tri-X on a hard paper grade, deep blacks, bright whites. */
-    public static let trixHard = Look("trixhard", "Tri-X Hard", "Kodak Tri-X 400 Hard.cube",
+    public static let trixHard = Look("trixhard", "Yellow Mono Hard", "Yellow Mono Hard.cube",
                                       grain: 30, vignette: -10, monochrome: true)
     /** Monochrome, Eastman Double-X cinema film. */
-    public static let doubleX = Look("doublex", "Double-X", "Kodak Double-X 5222.cube", grain: 20, monochrome: true)
+    public static let doubleX = Look("doublex", "Yellow Cine Mono", "Yellow Cine Mono.cube", grain: 20, monochrome: true)
     /** Monochrome, soft: Double-X developed short on a soft paper grade, open shadows. */
-    public static let doubleXSoft = Look("doublexsoft", "Double-X Soft", "Kodak Double-X 5222 Soft.cube",
+    public static let doubleXSoft = Look("doublexsoft", "Yellow Cine Mono Soft", "Yellow Cine Mono Soft.cube",
                                          grain: 20, monochrome: true)
 
     public static let all: [Look] = [
@@ -113,22 +113,22 @@ public enum FilmLooks {
         Look(id, name, nil, portraitRetouch: portraitRetouch, film: id)
     }
 
-    public static let portra400 = stock("portra400", "Portra 400", portraitRetouch: 20)
+    public static let portra400 = stock("portra400", "Yellow Portrait 400", portraitRetouch: 20)
 
     public static let all: [Look] = [
         Looks.natural,
         portra400,
-        stock("portra800", "Portra 800", portraitRetouch: 20),
-        stock("ektar100", "Ektar 100"),
-        stock("gold200", "Gold 200"),
-        stock("fuji400h", "Fuji 400H", portraitRetouch: 20),
-        stock("xtra400", "X-Tra 400"),
-        stock("vision250d", "Vision3 250D"),
-        stock("vision500t", "Vision3 500T"),
-        stock("velvia100", "Velvia 100"),
-        stock("provia100", "Provia 100F"),
-        stock("ektachrome100", "Ektachrome 100"),
-        stock("kodachrome64", "Kodachrome 64"),
+        stock("portra800", "Yellow Portrait 800", portraitRetouch: 20),
+        stock("ektar100", "Yellow Vivid 100"),
+        stock("gold200", "Yellow Warm 200"),
+        stock("fuji400h", "Green Pastel 400", portraitRetouch: 20),
+        stock("xtra400", "Green Everyday 400"),
+        stock("vision250d", "Yellow Cine 250D"),
+        stock("vision500t", "Yellow Cine 500T"),
+        stock("velvia100", "Green Vivid Slide 100"),
+        stock("provia100", "Green Slide 100"),
+        stock("ektachrome100", "Yellow Slide 100"),
+        stock("kodachrome64", "Yellow Classic 64"),
     ]
 
     public static func byId(_ id: String) -> Look {

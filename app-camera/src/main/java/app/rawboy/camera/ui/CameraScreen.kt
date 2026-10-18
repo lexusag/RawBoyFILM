@@ -497,7 +497,7 @@ private fun SettingsContent(settings: CameraSettings, vm: CameraViewModel) {
         Spacer(Modifier.height(16.dp))
         SettingSwitch(
             title = "Remember camera & settings",
-            subtitle = "Otherwise each start uses W, Portra 400 and default sliders",
+            subtitle = "Otherwise each start uses W, Yellow Portrait 400 and default sliders",
             checked = settings.rememberLast,
             onChange = vm::setRememberLast,
         )

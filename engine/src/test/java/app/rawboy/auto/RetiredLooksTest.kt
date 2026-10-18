@@ -21,7 +21,9 @@ class RetiredLooksTest {
 
     @Test
     fun removedLutsMapToBundledOnes() {
-        for (old in listOf("asset:luts/Kodak UltraMax 400.cube", "asset:luts/Kodak Portra 160.cube")) {
+        for (old in listOf(
+            "asset:luts/Kodak UltraMax 400.cube", "asset:luts/Kodak Portra 160.cube", "asset:luts/Kodak Portra 400.cube",
+        )) {
             val kept = RetiredLooks.lut(old)
             assertTrue(old, kept != old && File("..", kept.removePrefix("asset:")).isFile)
         }

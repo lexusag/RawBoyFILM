@@ -8,7 +8,7 @@
   "stocks": [
     {
       "id": "portra400",
-      "name": "Portra 400",
+      "name": "Yellow Portrait 400",
       "film": "kodak_portra_400",
       "print": "kodak_portra_endura",
       "positive": false,
@@ -75,7 +75,7 @@
     },
     {
       "id": "portra800",
-      "name": "Portra 800",
+      "name": "Yellow Portrait 800",
       "film": "kodak_portra_800",
       "print": "kodak_portra_endura",
       "positive": false,
@@ -142,7 +142,7 @@
     },
     {
       "id": "ektar100",
-      "name": "Ektar 100",
+      "name": "Yellow Vivid 100",
       "film": "kodak_ektar_100",
       "print": "kodak_portra_endura",
       "positive": false,
@@ -209,7 +209,7 @@
     },
     {
       "id": "gold200",
-      "name": "Gold 200",
+      "name": "Yellow Warm 200",
       "film": "kodak_gold_200",
       "print": "kodak_portra_endura",
       "positive": false,
@@ -276,7 +276,7 @@
     },
     {
       "id": "fuji400h",
-      "name": "Fuji 400H",
+      "name": "Green Pastel 400",
       "film": "fujifilm_pro_400h",
       "print": "kodak_portra_endura",
       "positive": false,
@@ -343,7 +343,7 @@
     },
     {
       "id": "xtra400",
-      "name": "Fuji X-Tra 400",
+      "name": "Green Everyday 400",
       "film": "fujifilm_xtra_400",
       "print": "kodak_portra_endura",
       "positive": false,
@@ -410,7 +410,7 @@
     },
     {
       "id": "vision250d",
-      "name": "Vision3 250D",
+      "name": "Yellow Cine 250D",
       "film": "kodak_vision3_250d",
       "print": "kodak_2383",
       "positive": false,
@@ -477,7 +477,7 @@
     },
     {
       "id": "vision500t",
-      "name": "Vision3 500T",
+      "name": "Yellow Cine 500T",
       "film": "kodak_vision3_500t",
       "print": "kodak_2383",
       "positive": false,
@@ -544,7 +544,7 @@
     },
     {
       "id": "velvia100",
-      "name": "Velvia 100",
+      "name": "Green Vivid Slide 100",
       "film": "fujifilm_velvia_100",
       "print": null,
       "positive": true,
@@ -611,7 +611,7 @@
     },
     {
       "id": "provia100",
-      "name": "Provia 100F",
+      "name": "Green Slide 100",
       "film": "fujifilm_provia_100f",
       "print": null,
       "positive": true,
@@ -678,7 +678,7 @@
     },
     {
       "id": "ektachrome100",
-      "name": "Ektachrome 100",
+      "name": "Yellow Slide 100",
       "film": "kodak_ektachrome_100",
       "print": null,
       "positive": true,
@@ -745,7 +745,7 @@
     },
     {
       "id": "kodachrome64",
-      "name": "Kodachrome 64",
+      "name": "Yellow Classic 64",
       "film": "kodak_kodachrome_64",
       "print": null,
       "positive": true,
