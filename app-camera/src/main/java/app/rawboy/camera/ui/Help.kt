@@ -27,7 +27,7 @@ internal val CAMERA_HELP = listOf(
         listOf(
             HelpItem("RAW", "Keep the DNG next to the JPEG (lit) or not (struck through)."),
             HelpItem("Flash", "Cycles Off, Flash and Focus-flash (the light helps focusing, then the flash fires)."),
-            HelpItem("Settings", "JPEG quality, Smaller photos, Histogram (live red, green and blue levels in a corner of the viewfinder), Remember camera & settings and the licences."),
+            HelpItem("Settings", "JPEG quality, Smaller photos, Merge 8 frames (each shot merges a burst of raws: less noise; hold still), Histogram (live red, green and blue levels in a corner of the viewfinder), Remember camera & settings and the licences."),
         ),
     ),
 )

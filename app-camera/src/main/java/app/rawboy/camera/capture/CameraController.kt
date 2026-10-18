@@ -33,14 +33,17 @@ import androidx.exifinterface.media.ExifInterface
 import app.rawboy.auto.analysis.MeterArea
 import app.rawboy.color.Mat3
 import app.rawboy.color.WhiteBalance
+import app.rawboy.raw.BurstNative
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import java.io.OutputStream
@@ -71,6 +74,11 @@ class Still(
     val flashGuide: Float?,
     /** The lens reported its focus distance, so [flashGuide] is per metre²; else it is the gain itself. */
     val distanceKnown: Boolean = true,
+    /**
+     * Frames the raw is worth after a burst merge: 1 + the share of each other frame that was merged (moving or
+     * misaligned parts fall back to the reference). 1 for a single frame. Noise is about 1/sqrt of it.
+     */
+    val effectiveFrames: Float = 1f,
 )
 
 /** A lens's learned flash exposure (see [CameraController.flashExposure]). */
@@ -83,7 +91,8 @@ class FlashGuides(
 
 /**
  * The back camera through Camera2: a preview stream into the viewfinder's SurfaceTexture with a
- * known tone curve (so it can be linearised), and single RAW_SENSOR captures written as DNG.
+ * known tone curve (so it can be linearised), and RAW_SENSOR captures written as DNG: one frame, or a burst merged
+ * into one (BurstNative).
  *
  * Camera callbacks run on a private thread; the suspend functions may be called from any thread.
  */
@@ -209,6 +218,8 @@ class CameraController(context: Context) : AutoCloseable {
     private var previewSurface: Surface? = null
     private var rawReader: ImageReader? = null
     private var pendingImage: CompletableDeferred<Image>? = null
+    /** Takes every raw image while a burst runs (camera thread; the image is closed after it returns). */
+    private var burstSink: ((Image) -> Unit)? = null
     /** Locked focus (and metering) point, upright normalised as shown; null = continuous autofocus. */
     @Volatile
     private var focusPoint: Pair<Float, Float>? = null
@@ -336,6 +347,11 @@ class CameraController(context: Context) : AutoCloseable {
         val reader = ImageReader.newInstance(info.rawSize.width, info.rawSize.height, ImageFormat.RAW_SENSOR, 2)
         reader.setOnImageAvailableListener({ r ->
             val image = r.acquireNextImage() ?: return@setOnImageAvailableListener
+            burstSink?.let { sink ->
+                // Copied out at once, so a burst never holds more than one of the reader's buffers.
+                image.use(sink)
+                return@setOnImageAvailableListener
+            }
             val waiting = pendingImage
             pendingImage = null
             if (waiting == null || !waiting.complete(image)) image.close()
@@ -497,19 +513,21 @@ class CameraController(context: Context) : AutoCloseable {
     /**
      * Captures one raw frame and writes it as DNG to [out], tagged with [exifOrientation].
      * One capture at a time. [flash] is ignored without a flash unit; [guides]: see [flashExposure], learned per lens
-     * by the caller.
+     * by the caller. [burstFrames] > 1 (without flash): that many frames, merged into the one raw ([burstDng]).
      */
     suspend fun captureDng(
         exifOrientation: Int,
         out: OutputStream,
         flash: FlashMode = FlashMode.OFF,
         guides: FlashGuides = FlashGuides(),
+        burstFrames: Int = 1,
         onSubmitted: () -> Unit = {},
     ): Still = captureLock.withLock {
         val s = session ?: throw IOException("Camera not ready")
         val inf = info ?: throw IOException("Camera not ready")
         val reader = rawReader ?: throw IOException("Camera not ready")
         val mode = if (inf.hasFlash) flash else FlashMode.OFF
+        if (mode == FlashMode.OFF && burstFrames > 1) return@withLock burstDng(s, inf, burstFrames, exifOrientation, out, onSubmitted)
         // Ambient exposure before any light comes on: the flash still never needs more.
         val ambient = _frames.value
         var focused = false
@@ -591,6 +609,142 @@ class CameraController(context: Context) : AutoCloseable {
             }
         }
         return captureResult
+    }
+
+    /**
+     * A burst of [frames] raws of the still request, aligned and merged into one (BurstNative: HDR+-style, the first
+     * frame is the reference) and written as DNG with the reference's metadata. Each frame is copied into native
+     * memory as it arrives and merged there while the burst goes on, then freed. Frames that fail or don't arrive in
+     * time are left out.
+     */
+    private suspend fun burstDng(
+        s: CameraCaptureSession,
+        inf: Info,
+        frames: Int,
+        exifOrientation: Int,
+        out: OutputStream,
+        onSubmitted: () -> Unit,
+    ): Still {
+        val reader = rawReader ?: throw IOException("Camera not ready")
+        val width = reader.width
+        val height = reader.height
+        val c = inf.characteristics
+        val white = (c.get(CameraCharacteristics.SENSOR_INFO_WHITE_LEVEL) ?: 1023).toFloat()
+        val staticBlack = c.get(CameraCharacteristics.SENSOR_BLACK_LEVEL_PATTERN)
+        val request = request(s, CameraDevice.TEMPLATE_STILL_CAPTURE).apply {
+            addTarget(reader.surface)
+            addTarget(previewSurface ?: throw IOException("Camera not ready"))
+            setCommon(inf)
+            inf.stillFpsRange?.let { set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
+            // Fresh frames from the shutter on, not zero-shutter-lag ones from the ring buffer.
+            set(CaptureRequest.CONTROL_ENABLE_ZSL, false)
+            if (inf.hasLensShadingMap) {
+                setForLens(CaptureRequest.STATISTICS_LENS_SHADING_MAP_MODE, CameraMetadata.STATISTICS_LENS_SHADING_MAP_MODE_ON)
+            }
+        }.build()
+
+        // Camera thread only. Each frame is paired with its result by timestamp; the pair hands the merger the frame's
+        // exposure (and, for the reference, its levels), so it can merge that frame while the burst goes on.
+        var handle = 0L
+        val stamps = ArrayList<Long>(frames)
+        val indexOf = HashMap<Long, Int>()
+        val results = HashMap<Long, CaptureResult>()
+        var failed = 0
+        var closed = false  // handed over: late results must not reach the merger (it may be destroyed)
+        val done = CompletableDeferred<Unit>()
+        fun checkDone() {
+            if (stamps.size + failed >= frames && results.size + failed >= frames) done.complete(Unit)
+        }
+        fun pair(stamp: Long) {
+            if (closed) return
+            val index = indexOf[stamp] ?: return
+            val r = results[stamp] ?: return
+            if (index == 0) {
+                val noise = noiseModel(r)
+                BurstNative.setLevels(handle, r.get(CaptureResult.SENSOR_DYNAMIC_BLACK_LEVEL)?.takeIf { it.size == 4 }, noise.first, noise.second)
+            }
+            gainOf(r)?.let { BurstNative.setGain(handle, index, it) }
+        }
+        val started = System.nanoTime()
+        handler.post {
+            burstSink = sink@{ img ->
+                if (done.isCompleted) return@sink
+                if (handle == 0L) {
+                    // The static black level stands in until the reference's result brings its own (setLevels).
+                    val black = FloatArray(4) { i -> staticBlack?.getOffsetForIndex(i % 2, i / 2)?.toFloat() ?: 64f }
+                    handle = BurstNative.create(width, height, black, white)
+                }
+                val plane = img.planes[0]
+                val index = BurstNative.addFrame(handle, plane.buffer, width, height, plane.rowStride)
+                if (index >= 0) {
+                    stamps += img.timestamp
+                    indexOf[img.timestamp] = index
+                    pair(img.timestamp)
+                }
+                checkDone()
+            }
+        }
+        s.captureBurst(List(frames) { request }, object : CameraCaptureSession.CaptureCallback() {
+            override fun onCaptureCompleted(session: CameraCaptureSession, request: CaptureRequest, r: TotalCaptureResult) {
+                val lr = lensResult(r)
+                lr.get(CaptureResult.SENSOR_TIMESTAMP)?.let { stamp ->
+                    results[stamp] = lr
+                    if (handle != 0L) pair(stamp)
+                }
+                checkDone()
+            }
+
+            override fun onCaptureFailed(session: CameraCaptureSession, request: CaptureRequest, failure: CaptureFailure) {
+                failed++
+                checkDone()
+            }
+        }, handler)
+        onSubmitted()
+        try {
+            // A frame takes at most 1/15 s plus readout; allow plenty, then go on with what arrived.
+            withTimeoutOrNull(BURST_TIMEOUT_MS + frames * BURST_FRAME_TIMEOUT_MS) { done.await() }
+        } catch (e: CancellationException) {
+            handler.post {
+                burstSink = null
+                closed = true
+                if (handle != 0L) BurstNative.destroy(handle)
+            }
+            throw e
+        }
+        // Stops taking frames; hands over what arrived (camera thread, where it was written).
+        val state = CompletableDeferred<Pair<Long, CaptureResult?>>()
+        handler.post {
+            burstSink = null
+            closed = true
+            state.complete(handle to stamps.firstOrNull()?.let { results[it] })
+        }
+        val (h, reference) = state.await()
+        if (h == 0L) throw IOException("Burst: no frames")
+        try {
+            if (reference == null) throw IOException("Burst: no result for the first frame")
+            val merged = withContext(Dispatchers.Default) { BurstNative.finish(h, width, height) }
+            val weights = BurstNative.frameWeights(h)
+            Log.d(TAG, "burst: ${weights.size + 1} of $frames frames, ${(System.nanoTime() - started) / 1_000_000} ms from submit to merged, " +
+                "at most ${BurstNative.maxQueued(h)} waiting, frame weights ${weights.joinToString(" ") { "%.2f".format(it) }}, " +
+                "noise ${noiseModel(reference).let { "${it.first} ${it.second}" }}")
+            DngCreator(inf.characteristics, reference).use { dng ->
+                dng.setOrientation(exifOrientation)
+                dng.writeByteBuffer(out, Size(width, height), merged, 0)
+            }
+            return Still(reference, null, effectiveFrames = 1f + weights.sum())
+        } finally {
+            BurstNative.destroy(h)
+        }
+    }
+
+    /** A frame's exposure as the merge scales it: time x ISO, or null if the result doesn't say. */
+    private fun gainOf(r: CaptureResult): Double? =
+        ((r.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: 0L).toDouble() * (r.get(CaptureResult.SENSOR_SENSITIVITY) ?: 0)).takeIf { it > 0.0 }
+
+    /** The reference frame's noise model averaged over the CFA channels: (scale, offset), or (0, 0) if not reported. */
+    private fun noiseModel(r: CaptureResult): Pair<Float, Float> {
+        val profile = r.get(CaptureResult.SENSOR_NOISE_PROFILE)?.takeIf { it.isNotEmpty() } ?: return 0f to 0f
+        return profile.map { it.first }.average().toFloat() to profile.map { it.second }.average().toFloat()
     }
 
     /**
@@ -895,6 +1049,9 @@ class CameraController(context: Context) : AutoCloseable {
 
         /** Focus-flash: how long the torch is on before the AF trigger, and how long AF may take with it. */
         private const val TORCH_WARMUP_MS = 300L
+        /** A burst waits this long plus [BURST_FRAME_TIMEOUT_MS] per frame for its frames, then merges what came. */
+        private const val BURST_TIMEOUT_MS = 2000L
+        private const val BURST_FRAME_TIMEOUT_MS = 250L
         private const val FOCUS_TIMEOUT_MS = 1500L
 
 

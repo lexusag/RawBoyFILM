@@ -20,12 +20,40 @@ final class LensPresetTests: XCTestCase {
         XCTAssertFalse(look.isLensPreset)
         XCTAssertEqual(Presets.lensPresetFor([look, decoded], lens: " xf23mmf2 r wr"), decoded)
         XCTAssertNil(Presets.lensPresetFor([look, decoded], lens: "XF35mmF2 R WR"))
-        // A lens-only preset from before the lens was recorded stands for any lens.
-        let old = try XCTUnwrap(Presets.decode(
-            #"{"format":"rawboy-preset","version":1,"name":"Old","groups":["lens"],"values":{"lensDistortion":5}}"#).first)
-        XCTAssertNil(old.lens)
-        XCTAssertEqual(Presets.lensPresetFor([old], lens: "XF35mmF2 R WR"), old)
-        XCTAssertEqual(Presets.lensPresetFor([old, decoded], lens: "XF23mmF2 R WR"), decoded)
+        // A lens-only preset naming no lens (a manual lens, or saved before the lens was recorded) is only picked by hand.
+        let manual = try XCTUnwrap(Presets.decode(
+            #"{"format":"rawboy-preset","version":1,"name":"Helios 44-2","groups":["lens"],"values":{"lensDistortion":5}}"#).first)
+        XCTAssertNil(manual.lens)
+        XCTAssertNil(Presets.lensPresetFor([manual], lens: "XF35mmF2 R WR"))
+        XCTAssertNil(Presets.lensPresetFor([manual], lens: ""))
+        XCTAssertEqual(Presets.lensPresetFor([manual, decoded], lens: "XF23mmF2 R WR"), decoded)
+    }
+
+    func testPickedByLensByIdOrNotAtAll() {
+        let auto = Presets.captureLens(params { $0.lensDistortion = 3 }, lens: "XF23mmF2 R WR")
+        let manual = Presets.captureLens(params { $0.lensDistortion = -8 }, lens: "", name: "Helios 44-2")
+        XCTAssertEqual(manual.name, "Helios 44-2")
+        XCTAssertNil(manual.lens)
+        let list = [auto, manual]
+        XCTAssertEqual(Presets.chosenLensPreset(list, choice: nil, lens: "XF23mmF2 R WR"), auto)
+        XCTAssertNil(Presets.chosenLensPreset(list, choice: nil, lens: ""))
+        XCTAssertEqual(Presets.chosenLensPreset(list, choice: manual.id, lens: "XF23mmF2 R WR"), manual)
+        XCTAssertNil(Presets.chosenLensPreset(list, choice: Presets.noLensPreset, lens: "XF23mmF2 R WR"))
+        XCTAssertNil(Presets.chosenLensPreset([auto], choice: manual.id, lens: ""))
+    }
+
+    func testNamedManualLensPresetsLiveSideBySide() {
+        let helios = Presets.captureLens(params { $0.lensDistortion = 5 }, lens: "", name: "Helios 44-2")
+        let jupiter = Presets.captureLens(params { $0.lensDistortion = 2 }, lens: "", name: "Jupiter-9")
+        let list = [helios, jupiter].reduce([Preset](), Presets.putLensPreset)
+        XCTAssertEqual(list.count, 2)
+        let updated = Presets.putLensPreset(list, Presets.captureLens(params { $0.lensDistortion = 7 }, lens: "", name: "helios 44-2 "))
+        XCTAssertEqual(updated.map(\.id), [helios.id, jupiter.id])
+        XCTAssertEqual(updated[0].values["lensDistortion"], .number(7))
+        // One photo, one recorded lens, two names: two presets.
+        let a = Presets.captureLens(params { $0.lensDistortion = 1 }, lens: "----", name: "Helios 44-2")
+        let b = Presets.captureLens(params { $0.lensDistortion = 2 }, lens: "----", name: "Jupiter-9")
+        XCTAssertEqual(Presets.putLensPreset([a], b).count, 2)
     }
 
     func testSavingAgainReplacesTheOneForThatLens() {

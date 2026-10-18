@@ -18,6 +18,8 @@ uniform float uColorDenoise;     // 0..1: chroma denoise
 uniform float uColorDenoiseWide; // 0..1: its coarse stage
 uniform float uGrain;       // 0..1
 uniform float uGrainSize;   // grain cell size in full-resolution pixels
+uniform float uGrainRoughness; // 0..1: grain strength varies in clumps (a coarser field modulates it)
+uniform float uGrainColor;  // 0 = monochrome grain, 1 = independent per channel
 uniform float uSharpen;     // 0..1
 uniform float uLocalContrast; // -1..1, edge-aware mid-frequency detail
 uniform float uClarity;     // -1..1, high-pass (local) contrast
@@ -340,8 +342,9 @@ vec3 unitHash(ivec2 cell, uint seed) {
     return vec3(h >> 8u) * (1.0 / 16777216.0); // [0, 1)
 }
 
-vec3 grainNoise(vec2 fullPx) {
-    vec2 q = fullPx / uGrainSize;
+// One field of soft grains on cells of `size` full-resolution pixels, ~unit variance per channel.
+vec3 grainField(vec2 fullPx, float size, uint seed) {
+    vec2 q = fullPx / size;
     vec2 base = floor(q);
     vec3 sum = vec3(0.0);
     float w2 = 0.0;
@@ -349,15 +352,27 @@ vec3 grainNoise(vec2 fullPx) {
         for (int i = -2; i <= 2; ++i) {
             vec2 cell = base + vec2(i, j);
             ivec2 id = ivec2(cell);
-            vec2 d = q - (cell + unitHash(id, 0x9e37u).xy); // jittered grain centre
-            float w = exp(-dot(d, d) * 2.0);                  // Gaussian, sigma = 0.5 cell
-            sum += w * (unitHash(id, 0x2545u) * 2.0 - 1.0);
+            vec2 d = q - (cell + unitHash(id, 0x9e37u + seed).xy); // jittered grain centre
+            float w = exp(-dot(d, d) * 2.0);                         // Gaussian, sigma = 0.5 cell
+            sum += w * (unitHash(id, 0x2545u + seed) * 2.0 - 1.0);
             w2 += w * w;
         }
     }
-    vec3 g = sum * inversesqrt(max(w2, 1e-6) / 3.0); // ~unit variance everywhere
+    return sum * inversesqrt(max(w2, 1e-6) / 3.0); // ~unit variance everywhere
+}
+
+vec3 grainNoise(vec2 fullPx) {
+    vec3 g = grainField(fullPx, uGrainSize, 0u);
+    if (uGrainRoughness > 0.0) {
+        // Uneven grain: grains twice as large mixed in, as clumps among the fine ones. Same variance, so Amount
+        // keeps its meaning.
+        float w = uGrainRoughness * 1.5;
+        g = (g + w * grainField(fullPx, uGrainSize * 2.0, 0x51edu)) * inversesqrt(1.0 + w * w);
+    }
     float mono = (g.r + g.g + g.b) * 0.57735;
-    return mix(vec3(mono), g, 0.15);
+    // Each channel's variance dips between mono and full colour (they are correlated); keep it at the default 0.15's.
+    float k = uGrainColor;
+    return mix(vec3(mono), g, k) * sqrt(0.89222 / ((1.0 - k) * (1.0 - k) + k * k + 1.1547 * k * (1.0 - k)));
 }
 
 // 3D LUT on the final sRGB-encoded image, sampled at node centres.

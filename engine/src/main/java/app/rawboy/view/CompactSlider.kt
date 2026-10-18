@@ -43,7 +43,7 @@ import kotlin.math.roundToInt
  * photo most of the screen. Double-tap the slider or tap the value to reset to [default].
  * [trackBrush] paints the whole track instead of the active/inactive colours (e.g. a colour gradient).
  * [stacked] puts the label and value above the slider instead (label and value widths unused), so two can share a row
- * and still have a usable track.
+ * and still have a usable track. [onLabelClick] makes the label tappable (e.g. to show more controls under it).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,10 +59,17 @@ fun CompactSlider(
     format: (Float) -> String = { formatSliderValue(it, range) },
     trackBrush: Brush? = null,
     stacked: Boolean = false,
+    onLabelClick: (() -> Unit)? = null,
     onChange: (Float) -> Unit,
 ) {
     val labelText = @Composable { m: Modifier ->
-        Text(label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = m)
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = if (onLabelClick != null) m.clickable(onClick = onLabelClick) else m,
+        )
     }
     val valueText = @Composable { m: Modifier ->
         Text(

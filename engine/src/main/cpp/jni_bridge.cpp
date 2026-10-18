@@ -1,5 +1,6 @@
 #include "rawboy.h"
 #include "blemish.h"
+#include "burst_merge.h"
 
 #include <android/bitmap.h>
 #include <jni.h>
@@ -287,6 +288,79 @@ JNIEXPORT jfloatArray JNICALL Java_app_rawboy_raw_RawNative_noiseLevel(JNIEnv* e
     jfloatArray result = env->NewFloatArray(2);
     env->SetFloatArrayRegion(result, 0, 2, v);
     return result;
+}
+
+// ---- Burst merge (RawBoy Camera; BurstNative.kt) ----
+
+namespace {
+rawboy::BurstMerger* burstOf(jlong handle) { return reinterpret_cast<rawboy::BurstMerger*>(handle); }
+}  // namespace
+
+// A merger whose frames wait for setLevels (the reference's own levels) before they merge.
+JNIEXPORT jlong JNICALL Java_app_rawboy_raw_BurstNative_create(JNIEnv* env, jclass, jint width, jint height,
+                                                              jfloatArray black, jfloat white) {
+    if (width < 2 || height < 2 || env->GetArrayLength(black) != 4) {
+        throwJava(env, "java/lang/IllegalArgumentException", "invalid burst geometry");
+        return 0;
+    }
+    float b[4];
+    env->GetFloatArrayRegion(black, 0, 4, b);
+    return reinterpret_cast<jlong>(new rawboy::BurstMerger(width, height, b, white, 0.0f, 0.0f, false));
+}
+
+// Copies one RAW_SENSOR plane (direct buffer, rowStride bytes per row); returns its index (0 = the reference).
+JNIEXPORT jint JNICALL Java_app_rawboy_raw_BurstNative_addFrame(JNIEnv* env, jclass, jlong handle, jobject plane,
+                                                               jint width, jint height, jint rowStride) {
+    const auto* data = static_cast<const uint8_t*>(env->GetDirectBufferAddress(plane));
+    if (!data || rowStride < width * 2 ||
+        env->GetDirectBufferCapacity(plane) < static_cast<jlong>(rowStride) * (height - 1) + width * 2) {
+        throwJava(env, "java/lang/IllegalArgumentException", "invalid raw plane");
+        return -1;
+    }
+    return burstOf(handle)->addFrame(data, rowStride, 0.0);
+}
+
+// A frame's exposure (time x ISO), once its capture result is in.
+JNIEXPORT void JNICALL Java_app_rawboy_raw_BurstNative_setGain(JNIEnv*, jclass, jlong handle, jint frame,
+                                                              jdouble gain) {
+    burstOf(handle)->setGain(frame, gain);
+}
+
+// The reference's black levels per 2x2 CFA position (null: keep create's) and noise model (0, 0 = estimate).
+JNIEXPORT void JNICALL Java_app_rawboy_raw_BurstNative_setLevels(JNIEnv* env, jclass, jlong handle, jfloatArray black,
+                                                                jfloat noiseScale, jfloat noiseOffset) {
+    float b[4];
+    const bool hasBlack = black && env->GetArrayLength(black) == 4;
+    if (hasBlack) env->GetFloatArrayRegion(black, 0, 4, b);
+    burstOf(handle)->setLevels(hasBlack ? b : nullptr, noiseScale, noiseOffset);
+}
+
+// Merges what is still waiting; returns a direct buffer over the merged 16-bit samples, valid until destroy.
+JNIEXPORT jobject JNICALL Java_app_rawboy_raw_BurstNative_finish(JNIEnv* env, jclass, jlong handle, jint width,
+                                                                jint height) {
+    const uint16_t* merged = burstOf(handle)->finish();
+    if (!merged) {
+        throwJava(env, "java/lang/IllegalStateException", "no frames");
+        return nullptr;
+    }
+    return env->NewDirectByteBuffer(const_cast<uint16_t*>(merged), static_cast<jlong>(width) * height * 2);
+}
+
+// Mean tile weight of each merged frame after the reference (0 = rejected everywhere, 1 = fully used).
+JNIEXPORT jfloatArray JNICALL Java_app_rawboy_raw_BurstNative_frameWeights(JNIEnv* env, jclass, jlong handle) {
+    const std::vector<float> w = burstOf(handle)->frameWeights();
+    jfloatArray result = env->NewFloatArray(static_cast<jsize>(w.size()));
+    env->SetFloatArrayRegion(result, 0, static_cast<jsize>(w.size()), w.data());
+    return result;
+}
+
+// Most frames that waited at once (copied, not yet merged).
+JNIEXPORT jint JNICALL Java_app_rawboy_raw_BurstNative_maxQueued(JNIEnv*, jclass, jlong handle) {
+    return burstOf(handle)->maxQueued();
+}
+
+JNIEXPORT void JNICALL Java_app_rawboy_raw_BurstNative_destroy(JNIEnv*, jclass, jlong handle) {
+    delete burstOf(handle);
 }
 
 }  // extern "C"

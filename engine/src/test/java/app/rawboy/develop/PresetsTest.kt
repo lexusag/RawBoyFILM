@@ -76,11 +76,26 @@ class PresetsTest {
         assertFalse(look.isLensPreset)
         assertEquals(decoded, Presets.lensPresetFor(listOf(look, decoded), " xf23mmf2 r wr"))
         assertNull(Presets.lensPresetFor(listOf(look, decoded), "XF35mmF2 R WR"))
-        // A lens-only preset from before the lens was recorded stands for any lens.
-        val old = Presets.decode("""{"format":"rawboy-preset","version":1,"name":"Old","groups":["lens"],"values":{"lensDistortion":5}}""").single()
-        assertNull(old.lens)
-        assertEquals(old, Presets.lensPresetFor(listOf(old), "XF35mmF2 R WR"))
-        assertEquals(decoded, Presets.lensPresetFor(listOf(old, decoded), "XF23mmF2 R WR"))
+        // A lens-only preset naming no lens (a manual lens, or saved before the lens was recorded) is only picked by hand.
+        val manual = Presets.decode("""{"format":"rawboy-preset","version":1,"name":"Helios 44-2","groups":["lens"],"values":{"lensDistortion":5}}""").single()
+        assertNull(manual.lens)
+        assertNull(Presets.lensPresetFor(listOf(manual), "XF35mmF2 R WR"))
+        assertNull(Presets.lensPresetFor(listOf(manual), ""))
+        assertEquals(decoded, Presets.lensPresetFor(listOf(manual, decoded), "XF23mmF2 R WR"))
+    }
+
+    @Test
+    fun lensPresetsArePickedByLensByIdOrNotAtAll() {
+        val auto = Presets.captureLens(DevelopParams(lensDistortion = 3f), "XF23mmF2 R WR")
+        val manual = Presets.captureLens(DevelopParams(lensDistortion = -8f), "", "Helios 44-2")
+        assertEquals("Helios 44-2", manual.name)
+        assertNull(manual.lens)
+        val list = listOf(auto, manual)
+        assertEquals(auto, Presets.chosenLensPreset(list, null, "XF23mmF2 R WR"))
+        assertNull(Presets.chosenLensPreset(list, null, ""))
+        assertEquals(manual, Presets.chosenLensPreset(list, manual.id, "XF23mmF2 R WR"))
+        assertNull(Presets.chosenLensPreset(list, Presets.NO_LENS_PRESET, "XF23mmF2 R WR"))
+        assertNull(Presets.chosenLensPreset(listOf(auto), manual.id, ""))
     }
 
     @Test
@@ -91,5 +106,21 @@ class PresetsTest {
         val list = Presets.putLensPreset(listOf(first, other), again)
         assertEquals(listOf(first.id, other.id), list.map { it.id })
         assertEquals(7f, list[0].values["lensDistortion"])
+    }
+
+    @Test
+    fun namedManualLensPresetsLiveSideBySide() {
+        val helios = Presets.captureLens(DevelopParams(lensDistortion = 5f), "", "Helios 44-2")
+        val jupiter = Presets.captureLens(DevelopParams(lensDistortion = 2f), "", "Jupiter-9")
+        val list = listOf(helios, jupiter).fold(emptyList<Preset>(), Presets::putLensPreset)
+        assertEquals(2, list.size)
+        val again = Presets.captureLens(DevelopParams(lensDistortion = 7f), "", "helios 44-2 ")
+        val updated = Presets.putLensPreset(list, again)
+        assertEquals(listOf(helios.id, jupiter.id), updated.map { it.id })
+        assertEquals(7f, updated[0].values["lensDistortion"])
+        // One photo, one recorded lens, two names: two presets.
+        val a = Presets.captureLens(DevelopParams(lensDistortion = 1f), "----", "Helios 44-2")
+        val b = Presets.captureLens(DevelopParams(lensDistortion = 2f), "----", "Jupiter-9")
+        assertEquals(2, Presets.putLensPreset(listOf(a), b).size)
     }
 }
