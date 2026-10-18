@@ -57,20 +57,29 @@ public enum PresetValue: Equatable, Sendable {
 
 /**
  * A named set of slider values. [values] holds only the fields of [groups] (by DevelopParams property name);
- * applying it overrides those and leaves everything else as it is. [id] is local to one device.
+ * applying it overrides those and leaves everything else as it is. [id] is local to one device. [lens] is the lens
+ * name of the photo it was saved on ("" = the file names none), nil for presets from before it was recorded.
  */
 public struct Preset: Identifiable, Equatable, Sendable {
-    public let id: String
+    public var id: String
     public var name: String
     public let groups: Set<PresetGroup>
     public let values: [String: PresetValue]
+    public let lens: String?
 
-    public init(id: String, name: String, groups: Set<PresetGroup>, values: [String: PresetValue]) {
+    public init(id: String, name: String, groups: Set<PresetGroup>, values: [String: PresetValue], lens: String? = nil) {
         self.id = id
         self.name = name
         self.groups = groups
         self.values = values
+        self.lens = lens
     }
+
+    /**
+     * A lens preset holds the Lens group alone: RawBoy Auto keeps it for photos taken with [lens] and applies it on top
+     * of their look (or RawBoy preset), changing only the lens corrections.
+     */
+    public var isLensPreset: Bool { groups == [.lens] }
 }
 
 /** Capturing, applying and the JSON file format of Presets (mirrored in Android's Presets.kt and web's Presets.ts). */
@@ -78,12 +87,55 @@ public enum Presets {
     public static let format = "rawboy-preset"
     public static let version = 1
 
-    public static func capture(_ name: String, _ params: DevelopParams, _ groups: Set<PresetGroup>) -> Preset {
+    public static func capture(_ name: String, _ params: DevelopParams, _ groups: Set<PresetGroup>, lens: String? = nil) -> Preset {
         var values: [String: PresetValue] = [:]
         for g in PresetGroup.allCases where groups.contains(g) {
             for f in g.fields { values[f] = get(params, f) }
         }
-        return Preset(id: newId(), name: name.trimmingCharacters(in: .whitespaces), groups: groups, values: values)
+        return Preset(
+            id: newId(), name: name.trimmingCharacters(in: .whitespaces), groups: groups, values: values,
+            lens: lens?.trimmingCharacters(in: .whitespaces)
+        )
+    }
+
+    /**
+     * A lens preset ([Preset.isLensPreset]) of [params]' lens corrections for the lens named [lens], called after the
+     * lens ("Lens preset" when the file names none).
+     */
+    public static func captureLens(_ params: DevelopParams, lens: String) -> Preset {
+        let name = lens.trimmingCharacters(in: .whitespaces)
+        return capture(name.isEmpty ? "Lens preset" : name, params, [.lens], lens: lens)
+    }
+
+    private static func sameLens(_ a: String?, _ b: String?) -> Bool {
+        guard let a, let b else { return a == nil && b == nil }
+        return a.trimmingCharacters(in: .whitespaces).lowercased() == b.trimmingCharacters(in: .whitespaces).lowercased()
+    }
+
+    /** Whether [preset] was made for the lens named [lens]: same name, ignoring case and outer spaces. */
+    public static func isFor(_ preset: Preset, lens: String) -> Bool { preset.lens != nil && sameLens(preset.lens, lens) }
+
+    /**
+     * The lens preset among [presets] for the lens named [lens] (the last one when there are several), else the last
+     * one that names no lens (saved before RawBoy recorded it), which stands for any lens; nil if none.
+     */
+    public static func lensPresetFor(_ presets: [Preset], lens: String) -> Preset? {
+        presets.last { $0.isLensPreset && isFor($0, lens: lens) } ?? presets.last { $0.isLensPreset && $0.lens == nil }
+    }
+
+    /**
+     * [presets] with [lensPreset] in place of the lens preset for the same lens (or the same missing lens), keeping its
+     * id and position; else added at the end.
+     */
+    public static func putLensPreset(_ presets: [Preset], _ lensPreset: Preset) -> [Preset] {
+        guard let i = presets.lastIndex(where: { $0.isLensPreset && sameLens($0.lens, lensPreset.lens) }) else {
+            return presets + [lensPreset]
+        }
+        var list = presets
+        var replaced = lensPreset
+        replaced.id = presets[i].id
+        list[i] = replaced
+        return list
     }
 
     /** [params] with the preset's stored fields; fields it doesn't hold (or doesn't know) stay. */
@@ -105,11 +157,13 @@ public enum Presets {
             case let .curves(c): values[k] = c.toJson()
             }
         }
-        return [
+        var json: [String: Any] = [
             "format": format, "version": version, "name": p.name,
             "groups": PresetGroup.allCases.filter { p.groups.contains($0) }.map(\.key),
             "values": values,
         ]
+        if let lens = p.lens { json["lens"] = lens }
+        return json
     }
 
     /** One preset as an object, several as an array (what "Export all" writes). */
@@ -163,7 +217,7 @@ public enum Presets {
             values["colorDenoise"] = .text(nil)
         }
         let name = (o["name"] as? String ?? "").trimmingCharacters(in: .whitespaces)
-        return Preset(id: newId(), name: name.isEmpty ? "Preset" : name, groups: groups, values: values)
+        return Preset(id: newId(), name: name.isEmpty ? "Preset" : name, groups: groups, values: values, lens: o["lens"] as? String)
     }
 
     private static let numberFields: [String: WritableKeyPath<DevelopParams, Float>] = [
