@@ -489,6 +489,33 @@ Gradle modules: `:engine` (Android library, namespace `app.rawboy.engine`; Kotli
 - Pro's Auto button: `AutoAnalysis.autoBase` (SceneAnalyzer + AutoTone on the session's 512 px base and skin mask,
   `PhotoSession.skinMask()` forces segmentation) → `AutoTone.applyTo` takes only light/colour/detail fields and keeps
   `lut`/`lutAmount`. Same in `ProStore.applyAuto` / `applyAuto` (TS).
+- **Camera burst merge** (`CameraSettings.mergeBurst`, `CameraController.burstDng`, `engine/src/main/cpp/burst_merge.*`,
+  `raw/BurstNative.kt`): `captureBurst` of N identical still requests (ZSL off, no flash); the raw reader's listener
+  hands each image to `burstSink`, which copies it into native memory at once (the reader keeps maxImages 2), and
+  results are paired with images by `SENSOR_TIMESTAMP` on the camera thread; each pair calls `setGain` (t × ISO), the
+  reference's pair also `setLevels` (dynamic black, `SENSOR_NOISE_PROFILE` averaged over channels; 0 = estimate from
+  the frames). **Streaming:** `BurstMerger`'s worker thread merges frames in order as soon as a frame's gain and the
+  levels are known, then frees it; `finish()` merges the rest (missing gains = the reference's) and writes the result
+  over the reference's samples. Sums: `num_` per raw pixel (window × weight × (sample − black)), `denom_` per 2×2
+  block; the window is evaluated per block (sin² at block centres still sums to 1) and the weights are per block, so one
+  denominator per block suffices. A clipped or out-of-frame alternate sample adds the reference's value. The merge is
+  our own simplified HDR+ (paper only, no GPL code): align on the 2×2 grey copy (pyramid 1/2/4/4, 8 px tiles, last
+  level = the merge tiles of 16 grey px at stride 8), integer grey shifts = even raw shifts (CFA phase kept); spatial
+  merge of 32 px raw tiles with sin² windows (sum to 1 at half stride; even/odd tile rows in two passes so threads
+  never write the same pixel), tile weight from the excess mean squared grey difference over 2σ², pixel weight from the
+  3x3 mean difference. Output keeps the raw's integer levels (rounding ≈ 0.3 DN; scaling + patching WhiteLevel would
+  keep more). The develop treats it as `effectiveFrames` (1 + Σ mean tile weights) times the light: noise ISO scale
+  ÷ that. Host test: `tools/burst_merge/run.sh`. Pixel 9 Pro (selfie, ISO 1212): noise ~3.2× lower (a little over √8:
+  the pixel weights smooth slightly), all 8 frames weight ~1.0, shutter to DNG 2–3.5 s (single 0.3 s), JPEG sooner
+  than a single frame (denoise 51 → 16). The first, non-streaming version peaked at ~400 MB native (all 8 raw copies,
+  7 grey planes, an accumulator) and Android killed ~20 background apps; streaming peaks at ~210 MB on the host
+  (reference 25 + num 50 + denom 12 + grey pyramids + the frame being merged + ~2 waiting), with the wait after the
+  last frame 2.0 → 0.4 s. TSan/ASan clean on the host test. Phone (streaming): no apps
+  killed, but 6–7 frames still wait (a frame every 33 ms, a merge step 0.3–0.4 s); peak ~590 MB native came from two
+  bursts overlapping a develop (a single develop alone ~445 MB), so `CameraViewModel.merging` blocks the shutter until
+  a burst's DNG is written (not the develop after it; merge off isn't blocked). With it: merged shots back to back
+  peak at 511 MB native (a burst merging while the previous JPEG develops), single shots 455 MB, a merged shot alone
+  ~320 MB; no apps killed, 2.1–3.1 s to DNG. Next if needed: request the burst in groups of 2–3 frames to cap the queue.
 - Camera focus lock: `CameraController.focusPoint`; `setCommon` puts AF_MODE_AUTO + regions on **every** request
   while locked, including the still capture (with CONTINUOUS_PICTURE there, the camera refocused at the shutter).
 - Selfie camera: front lenses with RAW only. Viewfinder mirrored (`Frame.mirror`; the shader mirrors only when the

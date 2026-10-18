@@ -241,6 +241,8 @@ struct DevelopProgram {
         u.float("uColorDenoiseWide", p.colorDenoiseWide)
         u.float("uGrain", p.grain)
         u.float("uGrainSize", g.grainSize * p.grainSizeScale)
+        u.float("uGrainRoughness", p.grainRoughness)
+        u.float("uGrainColor", p.grainColor)
         u.float("uSharpen", p.sharpening)
         u.float("uLocalContrast", p.localContrast)
         u.float("uClarity", p.base != nil ? p.highpassContrast : 0)

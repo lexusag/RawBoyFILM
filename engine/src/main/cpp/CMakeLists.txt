@@ -57,6 +57,7 @@ endif()
 set(RAWBOY_SOURCES
     jni_bridge.cpp
     blemish.cpp
+    burst_merge.cpp
     decode.cpp
     image_ops.cpp
     decoder_libraw.cpp

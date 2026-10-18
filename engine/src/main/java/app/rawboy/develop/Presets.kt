@@ -27,7 +27,7 @@ enum class PresetGroup(val key: String, val label: String, val fields: List<Stri
             "tintHue", "tintPurity",
         ),
     ),
-    DETAIL("detail", "Detail", listOf("denoise", "colorDenoise", "sharpening", "localContrast", "highpassContrast", "grain", "bloom")),
+    DETAIL("detail", "Detail", listOf("denoise", "colorDenoise", "sharpening", "localContrast", "highpassContrast", "grain", "grainSize", "grainRoughness", "grainColor", "bloom")),
     RETOUCH("retouch", "Retouch", listOf("skinRetouch", "blemishRemoval")),
     LUT("lut", "LUT", listOf("lut", "lutAmount")),
     LENS("lens", "Lens", listOf("lensProfile", "lensDistortion", "vignetteAmount", "vignetteMidpoint")),
@@ -37,8 +37,8 @@ enum class PresetGroup(val key: String, val label: String, val fields: List<Stri
     companion object {
         fun ofKey(key: String): PresetGroup? = entries.firstOrNull { it.key == key }
 
-        /** What the save dialog ticks first: white balance is usually specific to one light, masks to one composition. */
-        val DEFAULT: Set<PresetGroup> = entries.toSet() - WHITE_BALANCE - MASKS
+        /** What the save dialog ticks first: lens corrections are usually specific to one camera and lens, masks to one composition. */
+        val DEFAULT: Set<PresetGroup> = entries.toSet() - LENS - MASKS
     }
 }
 
@@ -73,29 +73,47 @@ object Presets {
     }
 
     /**
-     * A lens preset ([Preset.isLensPreset]) of [params]' lens corrections for the lens named [lens], called after the
-     * lens ("Lens preset" when the file names none).
+     * A lens preset ([Preset.isLensPreset]) of [params]' lens corrections for the lens named [lens], called [name] (by
+     * default after the lens, or "Lens preset" when the file names none). Manual lenses record no name: their presets
+     * are named by hand and picked in Auto ([chosenLensPreset]).
      */
-    fun captureLens(params: DevelopParams, lens: String): Preset =
-        capture(lens.trim().ifBlank { "Lens preset" }, params, setOf(PresetGroup.LENS), lens)
+    fun captureLens(params: DevelopParams, lens: String, name: String = lens): Preset =
+        capture(name.trim().ifBlank { lens.trim().ifBlank { "Lens preset" } }, params, setOf(PresetGroup.LENS), lens.trim().ifBlank { null })
 
-    /** Whether [preset] was made for the lens named [lens]: same name, ignoring case and outer spaces. */
-    fun isFor(preset: Preset, lens: String): Boolean = preset.lens?.trim().equals(lens.trim(), ignoreCase = true)
+    /** Whether [preset] was made for the lens named [lens]: same name, ignoring case and outer spaces; never a blank one. */
+    fun isFor(preset: Preset, lens: String): Boolean =
+        lens.isNotBlank() && preset.lens?.trim().equals(lens.trim(), ignoreCase = true)
 
     /**
-     * The lens preset among [presets] for the lens named [lens] (the last one when there are several), else the last
-     * one that names no lens (saved before RawBoy recorded it), which stands for any lens; null if none.
+     * The lens preset among [presets] for the lens named [lens] (the last one when there are several); null if none or
+     * the file names no lens (a manual lens: its presets are picked by hand, [chosenLensPreset]).
      */
-    fun lensPresetFor(presets: List<Preset>, lens: String): Preset? =
-        presets.lastOrNull { it.isLensPreset && isFor(it, lens) } ?: presets.lastOrNull { it.isLensPreset && it.lens == null }
+    fun lensPresetFor(presets: List<Preset>, lens: String): Preset? = presets.lastOrNull { it.isLensPreset && isFor(it, lens) }
+
+    /** [chosenLensPreset]'s choice for "no lens preset". */
+    const val NO_LENS_PRESET = "none"
 
     /**
-     * [presets] with [lensPreset] in place of the lens preset for the same lens (or the same missing lens), keeping its
-     * id and position; else added at the end.
+     * The lens preset a photo taken with [lens] gets for [choice]: null = by its lens ([lensPresetFor]),
+     * [NO_LENS_PRESET] = none, else the lens preset with that id (none if it was removed).
+     */
+    fun chosenLensPreset(presets: List<Preset>, choice: String?, lens: String): Preset? = when (choice) {
+        null -> lensPresetFor(presets, lens)
+        NO_LENS_PRESET -> null
+        else -> presets.firstOrNull { it.isLensPreset && it.id == choice }
+    }
+
+    /**
+     * [presets] with [lensPreset] in place of the one it updates, keeping its id and position; else added at the end.
+     * It updates the one of the same name for the same lens (or for no lens, as manual lenses record), so one photo can
+     * save several named lens presets side by side.
      */
     fun putLensPreset(presets: List<Preset>, lensPreset: Preset): List<Preset> {
-        val old = presets.lastOrNull { it.isLensPreset && it.lens?.trim().equals(lensPreset.lens?.trim(), ignoreCase = true) }
-            ?: return presets + lensPreset
+        val lens = lensPreset.lens?.trim().orEmpty()
+        val old = presets.lastOrNull {
+            it.isLensPreset && (if (lens.isNotEmpty()) isFor(it, lens) else it.lens.isNullOrBlank()) &&
+                it.name.trim().equals(lensPreset.name.trim(), ignoreCase = true)
+        } ?: return presets + lensPreset
         return presets.map { if (it === old) lensPreset.copy(id = old.id) else it }
     }
 
@@ -204,6 +222,9 @@ object Presets {
         "localContrast" -> p.localContrast
         "highpassContrast" -> p.highpassContrast
         "grain" -> p.grain
+        "grainSize" -> p.grainSize
+        "grainRoughness" -> p.grainRoughness
+        "grainColor" -> p.grainColor
         "bloom" -> p.bloom
         "skinRetouch" -> p.skinRetouch
         "blemishRemoval" -> p.blemishRemoval
@@ -258,6 +279,9 @@ object Presets {
             "localContrast" -> p.copy(localContrast = f)
             "highpassContrast" -> p.copy(highpassContrast = f)
             "grain" -> p.copy(grain = f)
+            "grainSize" -> p.copy(grainSize = f)
+            "grainRoughness" -> p.copy(grainRoughness = f)
+            "grainColor" -> p.copy(grainColor = f)
             "bloom" -> p.copy(bloom = f)
             "skinRetouch" -> p.copy(skinRetouch = f)
             "blemishRemoval" -> p.copy(blemishRemoval = f)

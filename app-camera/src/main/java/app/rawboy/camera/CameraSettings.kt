@@ -25,6 +25,8 @@ data class CameraSettings(
     val rememberLast: Boolean = false,
     /** A live RGB histogram in a corner of the viewfinder. */
     val showHistogram: Boolean = false,
+    /** Each shot (without flash) takes [BURST_FRAMES] raws and merges them into one: less noise. */
+    val mergeBurst: Boolean = false,
     /**
      * Per camera ([lensKey]): gain from the linearised preview to raw units (1.0 = sensor clip), learned
      * from each shot (raw key / viewfinder key), so the viewfinder's auto exposure matches the final.
@@ -56,9 +58,14 @@ data class CameraSettings(
     /** The long side to save at, or null for full size. */
     val maxLongSide: Int? get() = if (smallExport) SMALL_LONG_SIDE else null
 
+    /** Raws per shot: [BURST_FRAMES] with [mergeBurst], else 1. */
+    val burstFrames: Int get() = if (mergeBurst) BURST_FRAMES else 1
+
     companion object {
         const val MIN_QUALITY = 70
         const val SMALL_LONG_SIDE = 3000
+        /** Raws merged per shot with [mergeBurst]: noise about 1/sqrt of it where nothing moves (~2.8x less). */
+        const val BURST_FRAMES = 8
 
         /** Range of the preview calibration; the Pixel's lenses need 0.5 (selfie) to ~9 (T3). */
         const val MIN_SCALE = 1f / 32
@@ -89,6 +96,7 @@ object CameraSettingsStore {
             smallExport = p.getBoolean("smallExport", d.smallExport),
             rememberLast = p.getBoolean("rememberLast", d.rememberLast),
             showHistogram = p.getBoolean("showHistogram", d.showHistogram),
+            mergeBurst = p.getBoolean("mergeBurst", d.mergeBurst),
             previewScales = parseScales(p.getString(SCALES_KEY, null)),
             flashGuides = parseScales(p.getString(FLASH_GUIDES_KEY, null), min = 1e-2f, max = 1e4f),
             flash = runCatching { FlashMode.valueOf(p.getString("flash", null)!!) }.getOrDefault(d.flash),
@@ -116,6 +124,7 @@ object CameraSettingsStore {
             .putBoolean("smallExport", s.smallExport)
             .putBoolean("rememberLast", s.rememberLast)
             .putBoolean("showHistogram", s.showHistogram)
+            .putBoolean("mergeBurst", s.mergeBurst)
             .putBoolean("front", s.front)
             .putString("lens", s.lens)
             .putString("flash", s.flash.name)

@@ -8,6 +8,8 @@ import Foundation
  * - contrast, saturation, highlights, shadows, whites, blacks, tint: -100..+100
  * - temperature: Kelvin; the as-shot value is the default
  * - denoise, grain, sharpening: 0..100, 0 = off; denoise is luminance noise (and colour noise while colorDenoise is nil)
+ * - grainSize: 0..100, 25 = the default ~1/3200 of the long edge, each 25 doubles it (0 = half, 100 = 8x);
+ *   grainRoughness: 0..100 clumping (0 = even grain); grainColor: 0..100 per-channel colour in the grain (0 = mono)
  * - colorDenoise: 0..100 colour (chroma) noise, Pro's own slider; nil = follows denoise (Auto, Camera, older edits)
  * - localContrast: -100..100 edge-aware mid-frequency detail (texture a few pixels across), 0 = off
  * - highpassContrast: -100..100 local (clarity-style) contrast, 0 = off
@@ -55,6 +57,9 @@ public struct DevelopParams: Equatable, Sendable {
     public var denoise: Float = 0
     public var colorDenoise: Float? = nil
     public var grain: Float = 0
+    public var grainSize: Float = 25
+    public var grainRoughness: Float = 0
+    public var grainColor: Float = 15
     public var sharpening: Float = 0
     public var localContrast: Float = 0
     public var highpassContrast: Float = 0

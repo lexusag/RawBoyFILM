@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 
 # Shared paths, mirrored with --delete so files removed in RawBoy go here too.
 for path in engine app-camera/src/main app-camera/src/standard shaders luts gradle ios/Engine ios/Camera \
-    ios/EngineTests ios/native ios/shaders ios/mediapipe ios/icons tools/film_luts third_party; do
+    ios/EngineTests ios/native ios/shaders ios/mediapipe ios/icons tools/film_luts tools/burst_merge third_party; do
     rsync -a --delete \
         --exclude '/film/' --exclude 'build/' --exclude '.cxx/' --exclude 'out/' --exclude 'dng_sdk/' \
         --exclude 'spektrafilm/' \

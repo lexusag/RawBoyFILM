@@ -36,6 +36,9 @@ class ShaderParams(
     val colorDenoise: Float,
     val colorDenoiseWide: Float,
     val grain: Float,
+    /** 0..1 clumping and 0..1 per-channel colour of the grain (`uGrainRoughness`, `uGrainColor`). */
+    val grainRoughness: Float,
+    val grainColor: Float,
     /** Loaded LUT matching DevelopParams.lut, or null for none (always null while a film stock is on). */
     val lut: LutData?,
     val lutAmount: Float,
@@ -97,6 +100,9 @@ class ShaderParams(
         /** Source pixels the coarse stage reads around a pixel (chroma radius 18 px, plus bilinear). */
         const val WIDE_DENOISE_MARGIN = 20
 
+        /** Grain Size slider -> cell size factor: 1 at 25, doubling every 25 (0.5..8). */
+        fun grainSizeFactor(size: Float): Float = 2f.pow((size - 25f) / 25f)
+
         fun wideDenoise(denoise: Float): Float = ((denoise - WIDE_DENOISE_FROM) / (100f - WIDE_DENOISE_FROM)).coerceIn(0f, 1f)
 
         /** [asShot] holds the defaults the image was decoded with (its as-shot temperature/tint). */
@@ -138,6 +144,8 @@ class ShaderParams(
                 colorDenoise = p.effectiveColorDenoise / 100f,
                 colorDenoiseWide = wideDenoise(p.effectiveColorDenoise),
                 grain = p.grain / 100f * grainStrength,
+                grainRoughness = p.grainRoughness / 100f,
+                grainColor = p.grainColor / 100f,
                 // Film replaces the user LUT (Pro keeps the choice for when Film is turned off).
                 lut = lut?.takeIf { it.id == p.lut && p.film == null },
                 lutAmount = p.lutAmount / 100f,
@@ -151,7 +159,7 @@ class ShaderParams(
                 bloomTail = bloomSources?.tail,
                 skinRetouch = p.skinRetouch / 100f,
                 skinMask = skinMask,
-                grainSizeScale = grainSizeScale,
+                grainSizeScale = grainSizeScale * grainSizeFactor(p.grainSize),
                 toneMapper = p.toneMapper.shaderId,
                 displaySource = if (asShot.displaySource) 1f else 0f,
                 layers = packLayers(

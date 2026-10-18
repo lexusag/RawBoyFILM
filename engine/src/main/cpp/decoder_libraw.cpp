@@ -14,8 +14,10 @@
 #include <cmath>
 #include <cstdio>
 #include <ctime>
+#include <exception>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 namespace rawboy {
 namespace {
@@ -592,10 +594,109 @@ int removeColumnDefects(LibRaw& raw) {
     return static_cast<int>(kept.size());
 }
 
+#ifndef _OPENMP
+/**
+ * Fuji X-Trans demosaic (LibRaw's 3-pass Markesteijn) on all cores where LibRaw has no OpenMP (web, iOS). There it
+ * runs on one thread: 14.6 s for a 26 MP frame vs 2.4 s for AHD on a Bayer frame of the same size (x86, -O3).
+ *
+ * The frame is cut into horizontal bands with kMargin rows of context on each side; each band is demosaiced by
+ * LibRaw's own xtrans_interpolate on a private copy (a LibRaw instance that only holds the band), and its inner rows
+ * are written back. Margins come from a snapshot taken before any band runs, so every band sees the raw CFA data.
+ * Bands start on multiples of 6, so the 6×6 X-Trans pattern (and its 3-row green phase) is the same in every band.
+ * LibRaw's tiles look at most 8 + 3 rows past what they write, so 36 rows of context leave the inner rows as a
+ * single pass computes them, except where LibRaw's own tile seams fall (its tiles read rows their neighbour has
+ * already written, which OpenMP's order changes as well).
+ */
+class XTransBand : public LibRaw {
+public:
+    void demosaic(const LibRaw& full, ushort (*band)[4], int rows, int passes) {
+        imgdata.sizes.width = full.imgdata.sizes.width;
+        imgdata.sizes.height = static_cast<ushort>(rows);
+        imgdata.sizes.iwidth = imgdata.sizes.width;
+        imgdata.sizes.iheight = imgdata.sizes.height;
+        imgdata.idata.filters = 9;
+        imgdata.idata.colors = full.imgdata.idata.colors;
+        std::memcpy(imgdata.idata.xtrans, full.imgdata.idata.xtrans, sizeof imgdata.idata.xtrans);
+        std::memcpy(imgdata.color.rgb_cam, full.imgdata.color.rgb_cam, sizeof imgdata.color.rgb_cam);
+        imgdata.image = band;
+        try {
+            xtrans_interpolate(passes);
+        } catch (...) {
+            imgdata.image = nullptr;  // the band belongs to the caller
+            throw;
+        }
+        imgdata.image = nullptr;
+    }
+};
+
+void parallelXTrans(void* ctx) {
+    constexpr int kMargin = 36;      // context rows on each side of a band; a multiple of 6
+    constexpr int kMinRows = 500;    // band rows written; LibRaw needs at least LIBRAW_AHD_TILE (512) with margins
+    auto& raw = *static_cast<LibRaw*>(ctx);
+    const int w = raw.imgdata.sizes.width;
+    const int h = raw.imgdata.sizes.height;
+    const int passes = raw.imgdata.params.user_qual > 2 ? 3 : 1;  // as dcraw_process would ask
+    const int threads = std::max(1, std::min(8, static_cast<int>(std::thread::hardware_concurrency())));
+    const int bands = std::min(threads, h / kMinRows);
+    ushort(*image)[4] = raw.imgdata.image;
+    if (bands < 2) {
+        XTransBand().demosaic(raw, image, h, passes);
+        return;
+    }
+    // Band k writes rows [starts[k], starts[k + 1]).
+    std::vector<int> starts(bands + 1);
+    for (int k = 0; k <= bands; ++k) starts[k] = k == bands ? h : (h * k / bands) / 6 * 6;
+    // The CFA rows around each inner boundary, before any band overwrites them. 4 values per pixel, as LibRaw's image.
+    using Pixel = ushort[4];
+    const size_t rowValues = static_cast<size_t>(w) * 4;
+    const ushort* src = image[0];
+    std::vector<std::vector<ushort>> seams(bands);
+    for (int k = 1; k < bands; ++k)
+        seams[k].assign(src + (starts[k] - kMargin) * rowValues, src + (starts[k] + kMargin) * rowValues);
+    std::mutex errorLock;
+    std::exception_ptr error;
+    parallelRows(bands, [&](int first, int last) {
+        for (int k = first; k < last; ++k) {
+            try {
+                const int top = k == 0 ? 0 : starts[k] - kMargin;
+                const int bottom = k == bands - 1 ? h : starts[k + 1] + kMargin;
+                std::vector<ushort> band(static_cast<size_t>(bottom - top) * rowValues);
+                // Inner rows from the image (only this band writes them), margins from the seams.
+                const int innerTop = k == 0 ? 0 : starts[k] + kMargin;
+                const int innerBottom = k == bands - 1 ? h : starts[k + 1] - kMargin;
+                if (k > 0) std::copy(seams[k].begin(), seams[k].end(), band.begin());
+                std::copy(src + innerTop * rowValues, src + innerBottom * rowValues,
+                          band.begin() + (innerTop - top) * rowValues);
+                if (k < bands - 1)
+                    std::copy(seams[k + 1].begin(), seams[k + 1].end(), band.begin() + (innerBottom - top) * rowValues);
+                auto lib = std::make_unique<XTransBand>();  // LibRaw is large; keep it off the stack
+                lib->demosaic(raw, reinterpret_cast<Pixel*>(band.data()), bottom - top, passes);
+                std::copy(band.begin() + (starts[k] - top) * rowValues, band.begin() + (starts[k + 1] - top) * rowValues,
+                          image[0] + starts[k] * rowValues);
+            } catch (...) {
+                std::lock_guard<std::mutex> lock(errorLock);
+                if (!error) error = std::current_exception();
+            }
+        }
+    });
+    if (error) std::rethrow_exception(error);  // dcraw_process turns LibRaw's exceptions into its error codes
+}
+#endif
+
+/** LibRaw with RawBoy's processing steps hooked in (LibRaw's callbacks are protected). */
+class RawBoyLibRaw : public LibRaw {
+public:
+    RawBoyLibRaw() {
+#ifndef _OPENMP
+        callbacks.interpolate_xtrans_cb = parallelXTrans;
+#endif
+    }
+};
+
 }  // namespace
 
 bool decodeWithLibRaw(const uint8_t* data, size_t size, DecodedImage& out, std::string& error, float extraBlack) {
-    auto raw = std::make_unique<LibRaw>();  // LibRaw is large; keep it off the stack
+    auto raw = std::make_unique<RawBoyLibRaw>();  // LibRaw is large; keep it off the stack
 
     auto& p = raw->imgdata.params;
     p.output_bps = 16;
@@ -608,7 +709,7 @@ bool decodeWithLibRaw(const uint8_t* data, size_t size, DecodedImage& out, std::
     p.output_color = 0;     // camera RGB: lens gain maps apply per camera channel
     p.user_flip = 0;        // stay in sensor orientation; we rotate after lens shading
     p.highlight = 2;        // blend clipped channels (keeps highlights neutral)
-    p.user_qual = 3;        // AHD demosaic
+    p.user_qual = 3;        // AHD demosaic (Markesteijn 3-pass for X-Trans)
 
     const auto t0 = std::chrono::steady_clock::now();
     int rc = raw->open_buffer(data, size);

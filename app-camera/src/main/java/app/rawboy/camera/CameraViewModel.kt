@@ -94,6 +94,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     private val _pending = MutableStateFlow(0)
     val pending = _pending.asStateFlow()
 
+    /**
+     * A burst is being captured and merged: the shutter waits for its DNG. Back-to-back bursts each held their own
+     * frames and merge sums next to the previous shot's develop (~590 MB native on the Pixel 9 Pro).
+     */
+    private val _merging = MutableStateFlow(false)
+    val merging = _merging.asStateFlow()
+
     private val _lastShot = MutableStateFlow<LastShot?>(null)
     val lastShot = _lastShot.asStateFlow()
 
@@ -185,6 +192,8 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         val flashDistanceKnown: Boolean = true,
         /** Where the photo is metered, in the photo's own (level) orientation: see [meterArea]. */
         val meter: MeterArea = METER_CENTRE,
+        /** A merged burst: frames the raw is worth ([app.rawboy.camera.capture.Still.effectiveFrames]); 1 = one frame. */
+        val effectiveFrames: Float = 1f,
     )
 
     private val shots = Channel<Shot>(Channel.UNLIMITED)
@@ -449,6 +458,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun setSmallExport(on: Boolean) = change { it.copy(smallExport = on) }
     fun setRememberLast(on: Boolean) = change { it.copy(rememberLast = on) }
     fun setShowHistogram(on: Boolean) = change { it.copy(showHistogram = on) }
+    fun setMergeBurst(on: Boolean) = change { it.copy(mergeBurst = on) }
 
     /** Off -> Flash -> Focus-flash -> Off. */
     fun cycleFlash() = change { it.copy(flash = FlashMode.entries[(it.flash.ordinal + 1) % FlashMode.entries.size]) }
@@ -479,9 +489,11 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Takes a raw now; it is developed into a JPEG in the background. */
     fun shutter() {
-        if (_status.value != CameraStatus.READY) return
+        if (_status.value != CameraStatus.READY || _merging.value) return
         val settings = _settings.value
         val flash = settings.flash.takeIf { info?.hasFlash == true } ?: FlashMode.OFF
+        // Flash shots are single frames (CameraController.captureDng).
+        val burst = settings.burstFrames > 1 && flash == FlashMode.OFF
         // A flash shot's raw is lit by the flash, the viewfinder wasn't: no calibration from it.
         val viewfinderKey = if (flash == FlashMode.OFF) live?.stats?.key else null
         val mayHaveFace = info?.hasFaceDetection != true || controller.frames.value?.faces?.isNotEmpty() != false
@@ -493,6 +505,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 "${live?.auto?.let { "${it.temperature.toInt()}K/${it.tint.toInt()}" }}")
         }
         _pending.update { it + 1 }
+        if (burst) _merging.value = true
         viewModelScope.launch {
             val shot = try {
                 capture(settings, viewfinderKey, flash).copy(mayHaveFace = mayHaveFace)
@@ -504,6 +517,8 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 _message.value = "Capture failed: ${e.message ?: e.javaClass.simpleName}"
                 _pending.update { it - 1 }
                 return@launch
+            } finally {
+                if (burst) _merging.value = false
             }
             shots.send(shot)
         }
@@ -525,7 +540,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             val result = try {
                 withContext(Dispatchers.IO) {
                     val out = resolver.openOutputStream(uri, "w") ?: throw java.io.IOException("Cannot write $name")
-                    val result = out.buffered(1 shl 20).use { controller.captureDng(orientation, it, flash, settings.flashGuide) { _shutterEvents.tryEmit(Unit) } }
+                    val result = out.buffered(1 shl 20).use { controller.captureDng(orientation, it, flash, settings.flashGuide, settings.burstFrames) { _shutterEvents.tryEmit(Unit) } }
                     MediaStoreOutput.publish(resolver, uri)
                     result
                 }
@@ -534,16 +549,16 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
                 throw t
             }
             Log.d(TAG, "$name: capture + DNG write ${(System.nanoTime() - dngStart) / 1_000_000} ms")
-            Shot(uri, name, null, settings, viewfinderKey, isoOf(result.result), flashGuide = result.flashGuide, flashDistanceKnown = result.distanceKnown, meter = meter)
+            Shot(uri, name, null, settings, viewfinderKey, isoOf(result.result), flashGuide = result.flashGuide, flashDistanceKnown = result.distanceKnown, meter = meter, effectiveFrames = result.effectiveFrames)
         } else {
             val file = File(app.cacheDir, "$baseName.dng")
             val result = try {
-                withContext(Dispatchers.IO) { file.outputStream().buffered(1 shl 20).use { controller.captureDng(orientation, it, flash, settings.flashGuide) { _shutterEvents.tryEmit(Unit) } } }
+                withContext(Dispatchers.IO) { file.outputStream().buffered(1 shl 20).use { controller.captureDng(orientation, it, flash, settings.flashGuide, settings.burstFrames) { _shutterEvents.tryEmit(Unit) } } }
             } catch (t: Throwable) {
                 file.delete()
                 throw t
             }
-            Shot(Uri.fromFile(file), file.name, file, settings, viewfinderKey, isoOf(result.result), flashGuide = result.flashGuide, flashDistanceKnown = result.distanceKnown, meter = meter)
+            Shot(Uri.fromFile(file), file.name, file, settings, viewfinderKey, isoOf(result.result), flashGuide = result.flashGuide, flashDistanceKnown = result.distanceKnown, meter = meter, effectiveFrames = result.effectiveFrames)
         }
     }
 
@@ -558,7 +573,8 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
             RawImage.open(app, shot.dng, EXTRA_BLACK).use { img ->
                 val decodeMs = ms(decodeStart)
                 val analysisStart = System.nanoTime()
-                val noiseScale = if (s.front) FRONT_NOISE_ISO_SCALE else PHONE_NOISE_ISO_SCALE
+                // A merged burst is as clean as one frame at 1/frames the ISO: denoise for that.
+                val noiseScale = (if (s.front) FRONT_NOISE_ISO_SCALE else PHONE_NOISE_ISO_SCALE) / shot.effectiveFrames
                 val a = AutoAnalysis.analyze(
                     app, img, shot.name, noiseScale, shot.iso, detectSkin = shot.mayHaveFace, meter = shot.meter,
                 )

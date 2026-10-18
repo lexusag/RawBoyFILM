@@ -17,6 +17,9 @@ public final class ShaderParams: @unchecked Sendable {
     public let colorDenoise: Float
     public let colorDenoiseWide: Float
     public let grain: Float
+    /** 0..1 clumping and 0..1 per-channel colour of the grain (`uGrainRoughness`, `uGrainColor`). */
+    public let grainRoughness: Float
+    public let grainColor: Float
     /** Loaded LUT matching DevelopParams.lut, or nil for none (always nil while a film stock is on). */
     public let lut: LutData?
     public let lutAmount: Float
@@ -55,7 +58,7 @@ public final class ShaderParams: @unchecked Sendable {
 
     public init(whiteBalance: [Float], exposure: Float, contrast: Float, saturation: Float, shadows: Float,
                 highlights: Float, blacks: Float, whites: Float, denoise: Float, denoiseWide: Float,
-                colorDenoise: Float, colorDenoiseWide: Float, grain: Float,
+                colorDenoise: Float, colorDenoiseWide: Float, grain: Float, grainRoughness: Float = 0, grainColor: Float = 0.15,
                 lut: LutData?, lutAmount: Float, lens: LensTransform, sharpening: Float, localContrast: Float = 0,
                 highpassContrast: Float,
                 base: PreviewImage?, bloom: Float, bloomHalo: PreviewImage?, bloomTail: PreviewImage?,
@@ -75,6 +78,8 @@ public final class ShaderParams: @unchecked Sendable {
         self.colorDenoise = colorDenoise
         self.colorDenoiseWide = colorDenoiseWide
         self.grain = grain
+        self.grainRoughness = grainRoughness
+        self.grainColor = grainColor
         self.lut = lut
         self.lutAmount = lutAmount
         self.lens = lens
@@ -123,6 +128,9 @@ public final class ShaderParams: @unchecked Sendable {
     /** Source pixels the coarse stage reads around a pixel (chroma radius 18 px, plus bilinear). */
     public static let wideDenoiseMargin = 20
 
+    /** Grain Size slider -> cell size factor: 1 at 25, doubling every 25 (0.5..8). */
+    public static func grainSizeFactor(_ size: Float) -> Float { powf(2, (size - 25) / 25) }
+
     public static func wideDenoise(_ denoise: Float) -> Float {
         ((denoise - wideDenoiseFrom) / (100 - wideDenoiseFrom)).clamped(0, 1)
     }
@@ -158,6 +166,8 @@ public final class ShaderParams: @unchecked Sendable {
             colorDenoise: p.effectiveColorDenoise / 100,
             colorDenoiseWide: wideDenoise(p.effectiveColorDenoise),
             grain: p.grain / 100 * grainStrength,
+            grainRoughness: p.grainRoughness / 100,
+            grainColor: p.grainColor / 100,
             // Film replaces the user LUT (Pro keeps the choice for when Film is turned off).
             lut: lut?.id == p.lut && p.film == nil ? lut : nil,
             lutAmount: p.lutAmount / 100,
@@ -171,7 +181,7 @@ public final class ShaderParams: @unchecked Sendable {
             bloomTail: bloomSources?.tail,
             skinRetouch: p.skinRetouch / 100,
             skinMask: skinMask,
-            grainSizeScale: grainSizeScale,
+            grainSizeScale: grainSizeScale * grainSizeFactor(p.grainSize),
             toneMapper: p.toneMapper.shaderId,
             displaySource: asShot.displaySource ? 1 : 0,
             layers: packLayers(p.masks, imageWidth: lens.width, imageHeight: lens.height, kelvin: p.temperature,
