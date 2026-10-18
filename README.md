@@ -21,10 +21,11 @@ DNGs don't open; the camera's own Pixel and iPhone DNGs go through LibRaw.
 ## Film looks
 
 **RawBoy Film** is RawBoy Camera with film stocks as its looks (everything else above applies), simulated by
-[spektrafilm](https://github.com/andreavolpato/spektrafilm) (Andrea Volpato): Portra 400/800, Ektar 100, Gold 200,
-Fuji 400H, X-Tra 400, Vision3 250D and 500T (printed on 2383 cinema print film), and the slide
-films Velvia 100, Provia 100F, Ektachrome 100 and Kodachrome 64 (scanned, not printed). Colour negatives are printed
-on Portra Endura paper. **Natural** is the AgX develop alone. It saves to `Pictures/RawBoy Film` (`…-film.jpg`,
+[spektrafilm](https://github.com/andreavolpato/spektrafilm) (Andrea Volpato): Yellow Portrait 400/800, Yellow Vivid 100, Yellow Warm 200,
+Green Pastel 400, Green Everyday 400, Yellow Cine 250D and 500T (printed on cinema print film), and the slide
+films Green Vivid Slide 100, Green Slide 100, Yellow Slide 100 and Yellow Classic 64 (scanned, not printed). Colour
+negatives are printed on colour paper. Look names are RawBoy's own: "Yellow" and "Green" are two families of film
+character, not products. **Natural** is the AgX develop alone. It saves to `Pictures/RawBoy Film` (`…-film.jpg`,
 DNGs in `RAW/`), so its photos stay apart from RawBoy Camera's.
 
 - The film replaces AgX: after white balance, exposure and Shadows/Highlights, the scene light exposes the negative,

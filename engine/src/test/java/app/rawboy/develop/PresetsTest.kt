@@ -58,6 +58,6 @@ class PresetsTest {
             """"values":{"film":"c200","lut":"asset:luts/Kodak UltraMax 400.cube"}}"""
         val applied = Presets.apply(Presets.decode(old).single(), DevelopParams())
         assertEquals("xtra400", applied.film)
-        assertEquals("asset:luts/Kodak Portra 800.cube", applied.lut)
+        assertEquals("asset:luts/Yellow Portrait 800.cube", applied.lut)
     }
 }

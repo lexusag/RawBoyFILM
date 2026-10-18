@@ -52,7 +52,7 @@ final class RenderTests: XCTestCase {
 
         try await render(defaults, "IMG_0805-defaults.png")
         var look = defaults
-        look.lut = "asset:luts/Kodak Portra 400.cube"
+        look.lut = "asset:luts/Yellow Portrait 400.cube"
         look.lutAmount = 80
         look.highpassContrast = 30
         look.bloom = 40

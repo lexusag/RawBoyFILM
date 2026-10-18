@@ -107,6 +107,9 @@ Gradle modules: `:engine` (Android library, namespace `app.rawboy.engine`; Kotli
   one-at-a-time develop → jpegli JPEG, `previewScale` calibration from raw key / viewfinder key),
   `CameraSettings.kt`, `ui/`.
 - `luts/` — bundled LUTs, copied into the engine's assets by the `copyLuts` Gradle task.
+  User-visible look/stock names and bundled LUT file names are RawBoy's own (Yellow/Green families, 2026-10-18): no
+  film makers' brand or product names (`tools/spektrafilm_luts/generate.py` writes them into `stocks.json`); old LUT
+  file ids map to the new ones in `RetiredLooks`.
 - `licenses/THIRD_PARTY_NOTICES.txt` — every third-party licence plus the DNG patent notice (RawBoy Film:
   `THIRD_PARTY_NOTICES_FILM.txt`, its GPLv3 notice, the spektrafilm licences and the GPLv3 text, no Adobe sections;
   `copyNoticesFilm`); packaged by the engine's

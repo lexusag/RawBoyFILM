@@ -45,20 +45,20 @@ OUTPUT = "srgb"
 DEFAULT_PAPER = "kodak_portra_endura"
 CINE_PRINT = "kodak_2383"
 
-# (RawBoy id, display name, spektrafilm film profile, print profile; slides are scanned, the print is unused)
+# (RawBoy id, display name (RawBoy's own, no film brand or product names), spektrafilm film profile, print profile; slides are scanned, the print is unused)
 STOCKS = [
-    ("portra400", "Portra 400", "kodak_portra_400", DEFAULT_PAPER),
-    ("portra800", "Portra 800", "kodak_portra_800", DEFAULT_PAPER),
-    ("ektar100", "Ektar 100", "kodak_ektar_100", DEFAULT_PAPER),
-    ("gold200", "Gold 200", "kodak_gold_200", DEFAULT_PAPER),
-    ("fuji400h", "Fuji 400H", "fujifilm_pro_400h", DEFAULT_PAPER),
-    ("xtra400", "Fuji X-Tra 400", "fujifilm_xtra_400", DEFAULT_PAPER),
-    ("vision250d", "Vision3 250D", "kodak_vision3_250d", CINE_PRINT),
-    ("vision500t", "Vision3 500T", "kodak_vision3_500t", CINE_PRINT),
-    ("velvia100", "Velvia 100", "fujifilm_velvia_100", DEFAULT_PAPER),
-    ("provia100", "Provia 100F", "fujifilm_provia_100f", DEFAULT_PAPER),
-    ("ektachrome100", "Ektachrome 100", "kodak_ektachrome_100", DEFAULT_PAPER),
-    ("kodachrome64", "Kodachrome 64", "kodak_kodachrome_64", DEFAULT_PAPER),
+    ("portra400", "Yellow Portrait 400", "kodak_portra_400", DEFAULT_PAPER),
+    ("portra800", "Yellow Portrait 800", "kodak_portra_800", DEFAULT_PAPER),
+    ("ektar100", "Yellow Vivid 100", "kodak_ektar_100", DEFAULT_PAPER),
+    ("gold200", "Yellow Warm 200", "kodak_gold_200", DEFAULT_PAPER),
+    ("fuji400h", "Green Pastel 400", "fujifilm_pro_400h", DEFAULT_PAPER),
+    ("xtra400", "Green Everyday 400", "fujifilm_xtra_400", DEFAULT_PAPER),
+    ("vision250d", "Yellow Cine 250D", "kodak_vision3_250d", CINE_PRINT),
+    ("vision500t", "Yellow Cine 500T", "kodak_vision3_500t", CINE_PRINT),
+    ("velvia100", "Green Vivid Slide 100", "fujifilm_velvia_100", DEFAULT_PAPER),
+    ("provia100", "Green Slide 100", "fujifilm_provia_100f", DEFAULT_PAPER),
+    ("ektachrome100", "Yellow Slide 100", "kodak_ektachrome_100", DEFAULT_PAPER),
+    ("kodachrome64", "Yellow Classic 64", "kodak_kodachrome_64", DEFAULT_PAPER),
 ]
 
 

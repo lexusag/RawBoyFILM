@@ -50,37 +50,37 @@ object Looks {
     val NATURAL = Look("natural", "Natural", lutFile = null)
     /** The default: suggested for portraits and everyday scenes. */
     val PORTRA_400 = Look(
-        "portra400", "Portra 400", "Kodak Portra 400.cube",
+        "portra400", "Yellow Portrait 400", "Yellow Portrait 400.cube",
         grain = 20f, bloom = 5f, portraitRetouch = 20f,
     )
     val PORTRA_800 = Look(
-        "portra800", "Portra 800", "Kodak Portra 800.cube",
+        "portra800", "Yellow Portrait 800", "Yellow Portrait 800.cube",
         grain = 35f, bloom = 15f, portraitRetouch = 20f,
     )
     val EKTAR_100 = Look(
-        "ektar100", "Ektar 100", "Kodak Ektar 100.cube",
+        "ektar100", "Yellow Vivid 100", "Yellow Vivid 100.cube",
         grain = 10f, highpass = 10f,
     )
     val GOLD_200 = Look(
-        "gold200", "Gold 200", "Kodak Gold 200.cube",
+        "gold200", "Yellow Warm 200", "Yellow Warm 200.cube",
         grain = 25f, warmth = 200f, vignette = -10f,
     )
     val SUPERIA_400 = Look(
-        "superia400", "Superia 400", "Fuji Superia X-Tra 400.cube",
+        "superia400", "Green Everyday 400", "Green Everyday 400.cube",
         grain = 25f,
     )
     val FUJI_400H = Look(
-        "fuji400h", "Fuji 400H", "Fuji Pro 400H.cube",
+        "fuji400h", "Green Pastel 400", "Green Pastel 400.cube",
         grain = 20f, bloom = 5f, portraitRetouch = 20f,
     )
     /** Tungsten cinema film, the base of CineStill 800T. */
     val VISION3_500T = Look(
-        "vision500t", "Vision3 500T", "Kodak Vision3 500T.cube",
+        "vision500t", "Yellow Cine 500T", "Yellow Cine 500T.cube",
         grain = 35f, bloom = 20f,
     )
     /** Slide film: vivid colour, deep shadows. */
     val VELVIA_50 = Look(
-        "velvia50", "Velvia 50", "Fuji Velvia 50.cube",
+        "velvia50", "Green Vivid Slide 50", "Green Vivid Slide 50.cube",
         grain = 8f, vignette = -10f,
     )
     val REDSCALE = Look(
@@ -89,27 +89,27 @@ object Looks {
     )
     /** Monochrome, classic: Tri-X on a normal paper grade. */
     val TRIX_400 = Look(
-        "trix400", "Tri-X 400", "Kodak Tri-X 400.cube",
+        "trix400", "Yellow Mono 400", "Yellow Mono 400.cube",
         grain = 25f, monochrome = true,
     )
     /** Monochrome, Tri-X developed longer: harder and grainier. */
     val TRIX_PUSH = Look(
-        "trixpush", "Tri-X Push", "Kodak Tri-X 400 Push.cube",
+        "trixpush", "Yellow Mono Push", "Yellow Mono Push.cube",
         grain = 40f, monochrome = true,
     )
     /** Monochrome, hard: pushed Tri-X on a hard paper grade, deep blacks, bright whites. */
     val TRIX_HARD = Look(
-        "trixhard", "Tri-X Hard", "Kodak Tri-X 400 Hard.cube",
+        "trixhard", "Yellow Mono Hard", "Yellow Mono Hard.cube",
         grain = 30f, vignette = -10f, monochrome = true,
     )
     /** Monochrome, Eastman Double-X cinema film. */
     val DOUBLE_X = Look(
-        "doublex", "Double-X", "Kodak Double-X 5222.cube",
+        "doublex", "Yellow Cine Mono", "Yellow Cine Mono.cube",
         grain = 20f, monochrome = true,
     )
     /** Monochrome, soft: Double-X developed short on a soft paper grade, open shadows. */
     val DOUBLE_X_SOFT = Look(
-        "doublexsoft", "Double-X Soft", "Kodak Double-X 5222 Soft.cube",
+        "doublexsoft", "Yellow Cine Mono Soft", "Yellow Cine Mono Soft.cube",
         grain = 20f, monochrome = true,
     )
 

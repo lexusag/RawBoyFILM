@@ -295,7 +295,7 @@ private struct SettingsSheet: View {
                     Toggle(isOn: Binding(get: { vm.settings.rememberLast }, set: vm.setRememberLast)) {
                         VStack(alignment: .leading) {
                             Text("Remember camera & settings")
-                            Text("Otherwise each start uses W, Portra 400 and default sliders")
+                            Text("Otherwise each start uses W, Yellow Portrait 400 and default sliders")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }

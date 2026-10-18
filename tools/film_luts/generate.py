@@ -26,7 +26,7 @@ replaced, keeping the earlier, datasheet-neutral values where those were already
 punchier (Ektar, Velvia, most B&W).
 
     uv run tools/film_luts/generate.py                      # all stocks
-    uv run tools/film_luts/generate.py "Kodak Portra 400"   # only these files
+    uv run tools/film_luts/generate.py "Yellow Portrait 400" # only these files
 """
 
 import os
@@ -47,27 +47,27 @@ LUT_SIZE = 33
 
 SCAN = "scan"  # scan and invert the negative instead of printing it
 
-# (output file name without .cube, negative or slide stock, print stock / SCAN / None
+# (output file name without .cube, our own name with no film brand or product names, negative or slide stock, print stock / SCAN / None
 # for slides, contrast, saturation). Contrast is the inversion gamma for SCAN (1.6 is
 # about AgX's own, 3.0 is print-like), else push/pull in stops; saturation is
 # spectral_film_lut's sat_adjust (Oklab, 1 = as simulated). Names are
 # spectral_film_lut's own, typos included ("Trix-X").
 STOCKS = [
     # Colour
-    ("Kodak Portra 400", "Kodak Portra 400", SCAN, 2.2, 0.9),
-    ("Kodak Portra 800", "Kodak Portra 800", SCAN, 2.27, 0.96),
-    ("Kodak Ektar 100", "Kodak Ektar 100", SCAN, 2.0, 1.04),
-    ("Kodak Gold 200", "Kodak Gold 200", SCAN, 2.98, 0.93),
-    ("Fuji Superia X-Tra 400", "Fuji Superia X-Tra 400", SCAN, 2.15, 0.9),
-    ("Fuji Pro 400H", "Fuji Pro 400H", SCAN, 2.0, 0.875),
-    ("Kodak Vision3 500T", "Kodak Vision3 500T 5219", SCAN, 2.46, 0.99),
-    ("Fuji Velvia 50", "Fuji Velvia 50", None, 0.0, 1.12),
+    ("Yellow Portrait 400", "Kodak Portra 400", SCAN, 2.2, 0.9),
+    ("Yellow Portrait 800", "Kodak Portra 800", SCAN, 2.27, 0.96),
+    ("Yellow Vivid 100", "Kodak Ektar 100", SCAN, 2.0, 1.04),
+    ("Yellow Warm 200", "Kodak Gold 200", SCAN, 2.98, 0.93),
+    ("Green Everyday 400", "Fuji Superia X-Tra 400", SCAN, 2.15, 0.9),
+    ("Green Pastel 400", "Fuji Pro 400H", SCAN, 2.0, 0.875),
+    ("Yellow Cine 500T", "Kodak Vision3 500T 5219", SCAN, 2.46, 0.99),
+    ("Green Vivid Slide 50", "Fuji Velvia 50", None, 0.0, 1.12),
     # Black and white: more development and harder paper grades for Push and Hard
-    ("Kodak Tri-X 400", "Kodak Tri-X 400", "Kodak Polymax Fine-Art Paper Grade 2", 0.0, 1.0),
-    ("Kodak Tri-X 400 Push", "Kodak Trix-X 400 Dev 9", "Kodak Polymax Fine-Art Paper Grade 2", 0.0, 1.0),
-    ("Kodak Tri-X 400 Hard", "Kodak Trix-X 400 Dev 11", "Kodak Polymax Fine-Art Paper Grade 3", 0.0, 1.0),
-    ("Kodak Double-X 5222", "Kodak 5222", "Kodak 2302", 0.0, 1.0),
-    ("Kodak Double-X 5222 Soft", "Kodak 5222 Dev 4", "Kodak Polymax Fine-Art Paper Grade 1", 0.12, 1.0),
+    ("Yellow Mono 400", "Kodak Tri-X 400", "Kodak Polymax Fine-Art Paper Grade 2", 0.0, 1.0),
+    ("Yellow Mono Push", "Kodak Trix-X 400 Dev 9", "Kodak Polymax Fine-Art Paper Grade 2", 0.0, 1.0),
+    ("Yellow Mono Hard", "Kodak Trix-X 400 Dev 11", "Kodak Polymax Fine-Art Paper Grade 3", 0.0, 1.0),
+    ("Yellow Cine Mono", "Kodak 5222", "Kodak 2302", 0.0, 1.0),
+    ("Yellow Cine Mono Soft", "Kodak 5222 Dev 4", "Kodak Polymax Fine-Art Paper Grade 1", 0.12, 1.0),
 ]
 # Kodak Aerochrome III was tried for an infrared look: from RGB there is no infrared to
 # turn foliage red, so it only rendered everything cyan.

@@ -10,22 +10,22 @@ object FilmLooks {
     private fun stock(id: String, name: String, portraitRetouch: Float = 0f) =
         Look(id, name, lutFile = null, film = id, portraitRetouch = portraitRetouch)
 
-    val PORTRA_400 = stock("portra400", "Portra 400", portraitRetouch = 20f)
+    val PORTRA_400 = stock("portra400", "Yellow Portrait 400", portraitRetouch = 20f)
 
     val ALL = listOf(
         Looks.NATURAL,
         PORTRA_400,
-        stock("portra800", "Portra 800", portraitRetouch = 20f),
-        stock("ektar100", "Ektar 100"),
-        stock("gold200", "Gold 200"),
-        stock("fuji400h", "Fuji 400H", portraitRetouch = 20f),
-        stock("xtra400", "X-Tra 400"),
-        stock("vision250d", "Vision3 250D"),
-        stock("vision500t", "Vision3 500T"),
-        stock("velvia100", "Velvia 100"),
-        stock("provia100", "Provia 100F"),
-        stock("ektachrome100", "Ektachrome 100"),
-        stock("kodachrome64", "Kodachrome 64"),
+        stock("portra800", "Yellow Portrait 800", portraitRetouch = 20f),
+        stock("ektar100", "Yellow Vivid 100"),
+        stock("gold200", "Yellow Warm 200"),
+        stock("fuji400h", "Green Pastel 400", portraitRetouch = 20f),
+        stock("xtra400", "Green Everyday 400"),
+        stock("vision250d", "Yellow Cine 250D"),
+        stock("vision500t", "Yellow Cine 500T"),
+        stock("velvia100", "Green Vivid Slide 100"),
+        stock("provia100", "Green Slide 100"),
+        stock("ektachrome100", "Yellow Slide 100"),
+        stock("kodachrome64", "Yellow Classic 64"),
     )
 
     fun byId(id: String): Look = RetiredLooks.stock(id).let { key -> ALL.firstOrNull { it.id == key } } ?: PORTRA_400

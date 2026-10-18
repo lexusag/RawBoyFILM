@@ -22,3 +22,7 @@ keystore.properties
 
 # local stuff
 .logo/
+
+# Python bytecode
+__pycache__/
+*.pyc
