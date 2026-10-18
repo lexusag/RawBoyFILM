@@ -32,8 +32,10 @@ Gradle modules: `:engine` (Android library, namespace `app.rawboy.engine`; Kotli
   - `decoder_libraw.cpp` — main decoder (LibRaw 0.21.3, fetched by CMake). Outputs camera RGB
     unrotated, applies DNG gain maps per camera channel, converts to Rec.2020, then rotates.
   - `decoder_dng.cpp` — Adobe DNG SDK fallback (DNG 1.7 / JPEG XL). Only compiled when
-    `third_party/dng_sdk` exists (see `third_party/README.md`); standard release builds fail without it (`checkDngSdk`,
-    on `preStandardReleaseBuild`). The film edition never builds it (CMake `RAWBOY_USE_DNG_SDK=OFF`).
+    `third_party/dng_sdk` exists (see `third_party/README.md`); standard builds, release and debug, fail
+    without it (`checkDngSdk`, on `preStandardReleaseBuild`): `-DCMAKE_BUILD_TYPE=Release` makes AGP run the Release
+    CMake tasks for debug variants too (`mergeStandardDebugNativeLibs` → `buildCMakeRelease`), which hang off that
+    task. The film edition never builds it (CMake `RAWBOY_USE_DNG_SDK=OFF`).
   - `lens_opcodes.cpp` — our own DNG OpcodeList2/3 parser (GainMap, WarpRectilinear, FixVignetteRadial).
   - `blemish.cpp` — blemish detection + spot healing on the full-res image (undoable via backups).
   - `jni_bridge.cpp` — decoder order (JPEG by magic, else LibRaw first, SDK fallback for TIFF-magic files), JNI API.
