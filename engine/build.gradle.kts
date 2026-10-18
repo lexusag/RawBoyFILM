@@ -146,7 +146,8 @@ val copyNoticesFilm = tasks.register<CopyNoticesTask>("copyNoticesFilm") {
 
 /**
  * Standard release builds must include the Adobe DNG SDK (JPEG XL DNGs, and the notices assume it's there).
- * Debug builds still work without it; the film edition never has it.
+ * Standard debug builds need it too: CMAKE_BUILD_TYPE=Release makes them run the Release CMake tasks, which
+ * depend on preStandardReleaseBuild. The film edition never has it.
  */
 val checkDngSdk = tasks.register("checkDngSdk") {
     val sdk = rootProject.layout.projectDirectory.file("third_party/dng_sdk/dng_sdk/source/dng_host.cpp").asFile

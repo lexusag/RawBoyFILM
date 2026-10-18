@@ -15,7 +15,10 @@ mv dng_sdk_1_7_1 <repo>/third_party/dng_sdk
 so that `third_party/dng_sdk/dng_sdk/source/dng_host.cpp` and
 `third_party/dng_sdk/libjxl/libjxl/CMakeLists.txt` exist, then re-sync Gradle.
 Release builds need it: Android `*Release` builds and RawBoy Web's `npm run build:public` fail without it (the
-Docker build downloads it itself). Debug and local web builds still work without it; JPEG XL DNGs then fail to open.
+Docker build downloads it itself). Android debug builds of the standard edition (Pro, Auto, Camera) need it too:
+the engine's C++ is always built in Release mode, so they run the Release CMake tasks and with them the release
+check (`checkDngSdk`). RawBoy Film (`film` flavour) builds without it. Local web builds still work without it;
+JPEG XL DNGs then fail to open.
 
 ## Licence
 

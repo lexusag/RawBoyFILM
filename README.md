@@ -43,7 +43,9 @@ DNGs in `RAW/`), so its photos stay apart from RawBoy Camera's.
 ## Building
 
 - Android: `./gradlew :app-camera:assembleFilmDebug` (`installFilmDebug` to install). NDK 27.2, CMake 3.22.1, JDK 21
-  for the Gradle daemon. `:app-camera:assembleStandardDebug` builds plain RawBoy Camera from the same sources.
+  for the Gradle daemon. `:app-camera:assembleStandardDebug` builds plain RawBoy Camera from the same sources; it
+  needs the Adobe DNG SDK in `third_party/dng_sdk` (git-ignored, see `third_party/README.md`), which the Film build
+  never uses.
 - iOS: `ios/native/build.sh`, then `cd ios && xcodegen`, then build the `RawBoyFilm` scheme
   (tests: `RawBoyFilmEngineTests`). See CLAUDE.md for the details.
 - Film LUTs: `uv run tools/spektrafilm_luts/generate.py` regenerates `luts/spektrafilm/`.
