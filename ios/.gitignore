@@ -1,0 +1,6 @@
+RawBoy.xcodeproj/
+native/build/
+native/out/
+build/
+DerivedData/
+mediapipe/out/

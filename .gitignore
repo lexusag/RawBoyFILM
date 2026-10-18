@@ -1,0 +1,24 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+.cxx/
+.externalNativeBuild/
+captures/
+
+# Adobe DNG SDK: large; download it from Adobe (third_party/README.md). Its licence is third_party/DNG_SDK_LICENSE.txt.
+third_party/dng_sdk/
+
+# Release signing secrets
+keystore.properties
+*.jks
+*.keystore
+
+
+# test RAW files
+.raw/
+
+# local stuff
+.logo/

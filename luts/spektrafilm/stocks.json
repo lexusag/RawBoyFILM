@@ -1,0 +1,814 @@
+{
+  "source": "https://github.com/andreavolpato/spektrafilm",
+  "commit": "500bc42",
+  "spektrafilmVersion": "0.3.3",
+  "license": "CC BY-SA 4.0, see SPEKTRAFILM_LICENSE.txt and CHANGELOG.txt",
+  "input": "Apple Log (BT.2020 primaries), input gain 1: linear 0.18 = middle grey",
+  "output": "sRGB",
+  "stocks": [
+    {
+      "id": "portra400",
+      "name": "Portra 400",
+      "film": "kodak_portra_400",
+      "print": "kodak_portra_endura",
+      "positive": false,
+      "filmLut": "portra400.film.cube",
+      "printLut": "portra400.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        2.0155,
+        1.86,
+        2.225
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          1.99107,
+          1.79818,
+          2.16322
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.015,
+          0.005,
+          0.0
+        ],
+        "firstSigmaUm": [
+          65.0,
+          65.0,
+          65.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    },
+    {
+      "id": "portra800",
+      "name": "Portra 800",
+      "film": "kodak_portra_800",
+      "print": "kodak_portra_endura",
+      "positive": false,
+      "filmLut": "portra800.film.cube",
+      "printLut": "portra800.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        1.9346,
+        1.7868,
+        2.0202
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          1.89796,
+          1.73087,
+          2.02492
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.015,
+          0.005,
+          0.0
+        ],
+        "firstSigmaUm": [
+          65.0,
+          65.0,
+          65.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    },
+    {
+      "id": "ektar100",
+      "name": "Ektar 100",
+      "film": "kodak_ektar_100",
+      "print": "kodak_portra_endura",
+      "positive": false,
+      "filmLut": "ektar100.film.cube",
+      "printLut": "ektar100.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        1.9234,
+        1.8351,
+        2.3147
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          1.89012,
+          1.78041,
+          2.2699
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.015,
+          0.005,
+          0.0
+        ],
+        "firstSigmaUm": [
+          65.0,
+          65.0,
+          65.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    },
+    {
+      "id": "gold200",
+      "name": "Gold 200",
+      "film": "kodak_gold_200",
+      "print": "kodak_portra_endura",
+      "positive": false,
+      "filmLut": "gold200.film.cube",
+      "printLut": "gold200.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        1.69,
+        1.5679,
+        1.7336
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          1.62724,
+          1.51388,
+          1.6868
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.08,
+          0.02,
+          0.0
+        ],
+        "firstSigmaUm": [
+          65.0,
+          65.0,
+          65.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    },
+    {
+      "id": "fuji400h",
+      "name": "Fuji 400H",
+      "film": "fujifilm_pro_400h",
+      "print": "kodak_portra_endura",
+      "positive": false,
+      "filmLut": "fuji400h.film.cube",
+      "printLut": "fuji400h.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        1.6179,
+        1.663,
+        2.1352
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          1.58114,
+          1.6048,
+          2.12553
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.015,
+          0.005,
+          0.0
+        ],
+        "firstSigmaUm": [
+          65.0,
+          65.0,
+          65.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    },
+    {
+      "id": "xtra400",
+      "name": "Fuji X-Tra 400",
+      "film": "fujifilm_xtra_400",
+      "print": "kodak_portra_endura",
+      "positive": false,
+      "filmLut": "xtra400.film.cube",
+      "printLut": "xtra400.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        2.1503,
+        2.2454,
+        2.7334
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          2.13227,
+          2.24937,
+          2.86184
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.08,
+          0.02,
+          0.0
+        ],
+        "firstSigmaUm": [
+          65.0,
+          65.0,
+          65.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    },
+    {
+      "id": "vision250d",
+      "name": "Vision3 250D",
+      "film": "kodak_vision3_250d",
+      "print": "kodak_2383",
+      "positive": false,
+      "filmLut": "vision250d.film.cube",
+      "printLut": "vision250d.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        1.677,
+        1.7501,
+        1.8981
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          1.69455,
+          1.77677,
+          1.90732
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.015,
+          0.005,
+          0.0
+        ],
+        "firstSigmaUm": [
+          50.0,
+          50.0,
+          50.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    },
+    {
+      "id": "vision500t",
+      "name": "Vision3 500T",
+      "film": "kodak_vision3_500t",
+      "print": "kodak_2383",
+      "positive": false,
+      "filmLut": "vision500t.film.cube",
+      "printLut": "vision500t.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        1.7052,
+        1.6092,
+        1.9171
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          1.7448,
+          1.63887,
+          1.92101
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.015,
+          0.005,
+          0.0
+        ],
+        "firstSigmaUm": [
+          50.0,
+          50.0,
+          50.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    },
+    {
+      "id": "velvia100",
+      "name": "Velvia 100",
+      "film": "fujifilm_velvia_100",
+      "print": null,
+      "positive": true,
+      "filmLut": "velvia100.film.cube",
+      "printLut": "velvia100.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        2.8692,
+        3.7531,
+        3.0026
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          2.73098,
+          3.57318,
+          2.85887
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.015,
+          0.005,
+          0.0
+        ],
+        "firstSigmaUm": [
+          65.0,
+          65.0,
+          65.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    },
+    {
+      "id": "provia100",
+      "name": "Provia 100F",
+      "film": "fujifilm_provia_100f",
+      "print": null,
+      "positive": true,
+      "filmLut": "provia100.film.cube",
+      "printLut": "provia100.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        2.6851,
+        2.6731,
+        2.1801
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          2.55565,
+          2.54451,
+          2.07569
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.015,
+          0.005,
+          0.0
+        ],
+        "firstSigmaUm": [
+          65.0,
+          65.0,
+          65.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    },
+    {
+      "id": "ektachrome100",
+      "name": "Ektachrome 100",
+      "film": "kodak_ektachrome_100",
+      "print": null,
+      "positive": true,
+      "filmLut": "ektachrome100.film.cube",
+      "printLut": "ektachrome100.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        2.638,
+        2.9465,
+        2.953
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          2.51079,
+          2.80482,
+          2.81172
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.015,
+          0.005,
+          0.0
+        ],
+        "firstSigmaUm": [
+          65.0,
+          65.0,
+          65.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    },
+    {
+      "id": "kodachrome64",
+      "name": "Kodachrome 64",
+      "film": "kodak_kodachrome_64",
+      "print": null,
+      "positive": true,
+      "filmLut": "kodachrome64.film.cube",
+      "printLut": "kodachrome64.print.cube",
+      "densityMin": [
+        -0.2,
+        -0.2,
+        -0.2
+      ],
+      "densityMaxWire": [
+        3.057,
+        2.945,
+        2.373
+      ],
+      "grain": {
+        "particleAreaUm2": 0.2,
+        "particleScale": [
+          1.6,
+          1.6,
+          3.2
+        ],
+        "densityMin": [
+          0.03,
+          0.03,
+          0.03
+        ],
+        "densityMax": [
+          2.90986,
+          2.80345,
+          2.25928
+        ],
+        "uniformity": [
+          0.97,
+          0.99,
+          0.97
+        ],
+        "blurPx": 0.65
+      },
+      "halation": {
+        "strength": [
+          0.08,
+          0.02,
+          0.0
+        ],
+        "firstSigmaUm": [
+          65.0,
+          65.0,
+          65.0
+        ],
+        "bounces": 3,
+        "bounceDecay": 0.5,
+        "scatterTailUm": [
+          9.3,
+          9.7,
+          9.1
+        ],
+        "scatterTailWeight": [
+          0.78,
+          0.65,
+          0.67
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "about": "RawBoy's own grain, halation and scatter for shaders/film_form.glsl (standard apps). Not spektrafilm data: RMS granularity and halation fractions are this model's parameters, fitted with tools/film_eval to RawBoy Film's renders by output statistics only (grain std by tone band, halation's added light). Scatter set by hand.",
+  "defaults": {
+    "layerGrain": [1.0, 0.9, 1.45],
+    "halation": [0.003, 0.0022, 0.002],
+    "haloRadiusUm": 230,
+    "scatter": [0.3, 0.22, 0.12],
+    "scatterUm": 6
+  },
+  "stocks": {
+    "portra400": { "rms": 0.0075 },
+    "portra800": { "rms": 0.0074 },
+    "ektar100": { "rms": 0.0071 },
+    "gold200": { "rms": 0.0062, "halation": [0.01, 0.003, 0.0005] },
+    "fuji400h": { "rms": 0.0067 },
+    "xtra400": { "rms": 0.0092, "halation": [0.01, 0.003, 0.0005] },
+    "vision250d": { "rms": 0.0072 },
+    "vision500t": { "rms": 0.0068 },
+    "velvia100": { "rms": 0.0122 },
+    "provia100": { "rms": 0.0098 },
+    "ektachrome100": { "rms": 0.0106 },
+    "kodachrome64": { "rms": 0.011, "halation": [0.007, 0.0025, 0.001] }
+  }
+}

@@ -1,0 +1,16 @@
+Changes RawBoy made to the spektrafilm LUTs in this folder
+==========================================================
+
+The LUTs are derived from spektrafilm by Andrea Volpato
+(https://github.com/andreavolpato/spektrafilm), licensed CC BY-SA 4.0
+(SPEKTRAFILM_LICENSE.txt, unmodified). Modified by the RawBoy authors; the
+modified files are licensed CC BY-SA 4.0 as well.
+
+- Baked with spektrafilm's own LUT creator at commit 500bc42 (spektrafilm
+  0.3.3), 2-LUT topology, 33^3, Apple Log in, sRGB out. Cube contents
+  and headers are unchanged.
+- Files renamed: <id>.film.cube, <id>.print.cube, <id>.bundle.json.
+- Slide films (positive: Velvia 100, Provia 100F, Ektachrome 100, Kodachrome 64) are baked with spektrafilm's io.scan_film
+  option, so their "print" LUT scans the slide instead of printing it.
+- stocks.json collects each bundle's density wire and spektrafilm's grain and
+  halation parameters for RawBoy's shader; it is generated, not hand edited.

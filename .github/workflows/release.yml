@@ -1,0 +1,120 @@
+# Builds the signed RawBoy Film APK and attaches it to the GitHub release.
+# Secrets: KEYSTORE_FILE (base64 of the .jks), KEYSTORE_PASS (store and key password; key alias "rawboy").
+# Publishing a release only dispatches this workflow on the default branch: caches saved by a run on a tag
+# can't be restored by later tags, so the builds run on main (sources still come from the tag).
+name: Release RawBoy Film
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and upload APKs for
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  dispatch:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch the build on the default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: >
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY"
+          --ref "${{ github.event.repository.default_branch }}" -f tag="$TAG"
+
+  apks:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # The action's default packages include "tools", which the SDK no longer has.
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools ndk;27.2.12479018 cmake;3.22.1
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The C++ dependencies (LibRaw, jpegli) rarely change between releases. RawBoy Film never has the DNG SDK.
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: android-ndk27
+          max-size: 1G
+          verbose: 1
+
+      - name: Set up signing
+        env:
+          KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+        run: |
+          echo "$KEYSTORE_FILE" | base64 -d > "$RUNNER_TEMP/release.jks"
+          {
+            echo "storeFile=$RUNNER_TEMP/release.jks"
+            echo "storePassword=$KEYSTORE_PASS"
+            echo "keyAlias=rawboy"
+            echo "keyPassword=$KEYSTORE_PASS"
+          } > keystore.properties
+
+      # Tag vX.Y.Z -> versionName X.Y.Z, versionCode X*10000 + Y*100 + Z (so Y and Z stay below 100).
+      - name: Version from tag
+        run: |
+          name="${TAG#v}"
+          if [[ "$name" =~ ^([0-9]+)\.([0-9]{1,2})\.([0-9]{1,2})$ ]]; then
+            code=$(( 10#${BASH_REMATCH[1]} * 10000 + 10#${BASH_REMATCH[2]} * 100 + 10#${BASH_REMATCH[3]} ))
+          else
+            echo "::error::Release tag '$TAG' must be vX.Y.Z with Y and Z below 100"; exit 1
+          fi
+          echo "VERSION_NAME=$name" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "versionName $name, versionCode $code"
+
+      # CMake reads the launcher from the environment; AGP's CMake inherits it through the Gradle daemon.
+      # COMPILERCHECK=content: the NDK is unpacked afresh each run, so its mtime (ccache's default check) changes.
+      # Release APKs are arm64 only (x86_64 is for emulators; local builds keep it). Lint vital is skipped.
+      - name: Build release APK
+        env:
+          CMAKE_C_COMPILER_LAUNCHER: ccache
+          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_NOHASHDIR: "true"
+          CCACHE_COMPILERCHECK: content
+        run: >
+          ./gradlew --parallel -Dorg.gradle.jvmargs="-Xmx8g -Dfile.encoding=UTF-8"
+          -x lintVitalFilmRelease
+          -Prawboy.versionName="$VERSION_NAME" -Prawboy.versionCode="$VERSION_CODE"
+          -Prawboy.abis=arm64-v8a :app-camera:assembleFilmRelease
+
+      # Unsigned builds are named *-release-unsigned.apk, so a signing problem fails here.
+      - name: Collect APK
+        run: |
+          mkdir dist
+          # RawBoy Film: GPLv3 (spektrafilm), no Adobe DNG SDK; its source is this repository at the tag.
+          cp app-camera/build/outputs/apk/film/release/app-camera-film-release.apk "dist/RawBoy-Film-$TAG.apk"
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" dist/*.apk --clobber
+
+      - name: Remove signing files
+        if: always()
+        run: rm -f keystore.properties "$RUNNER_TEMP/release.jks"
+

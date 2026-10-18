@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RawBoy's lens mark in the Camera accent, with a shutter dot. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FF1B1B1B" android:pathData="M0,0h108v108h-108z" />
+    <path android:fillColor="#FFFFB74D" android:pathData="M54,22a32,32 0,1 1,0 64a32,32 0,1 1,0 -64z" />
+    <path android:fillColor="#FF1B1B1B" android:pathData="M54,34a20,20 0,1 1,0 40a20,20 0,1 1,0 -40z" />
+    <path android:fillColor="#FF80CBC4" android:pathData="M54,44a10,10 0,1 1,0 20a10,10 0,1 1,0 -20z" />
+    <path android:fillColor="#FFFFB74D" android:pathData="M80,20a6,6 0,1 1,0 12a6,6 0,1 1,0 -12z" />
+</vector>

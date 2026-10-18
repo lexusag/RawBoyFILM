@@ -1,0 +1,242 @@
+# RawBoy iOS. Generate the Xcode project with `xcodegen` in this folder (RawBoy.xcodeproj is git-ignored).
+# Needs the native frameworks first: native/build.sh. The develop shaders are generated from <repo>/shaders by
+# shaders/gen.sh, before generating the project and again before every engine build.
+# Two engine editions, as Android's: RawBoyEngine (RawBoy Camera) and RawBoyFilmEngine (RawBoy Film, GPLv3:
+# spektrafilm's grain/halation shader, its own notices, RawBoyNativeFilm without the Adobe DNG SDK). Both bundle the
+# film stocks' LUTs (luts/spektrafilm, CC BY-SA 4.0).
+name: RawBoy
+options:
+  bundleIdPrefix: app.rawboy
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  preGenCommand: shaders/gen.sh && mediapipe/fetch.sh
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    # Owner's free Personal Team: apps on a device must be reinstalled from Xcode every 7 days.
+    DEVELOPMENT_TEAM: PB2FFKSMC8
+    CODE_SIGN_STYLE: Automatic
+targets:
+  RawBoyEngine:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Engine
+      - path: build/generated
+        group: Generated
+      - path: ../luts
+        type: folder
+        buildPhase: resources
+      - path: ../licenses/THIRD_PARTY_NOTICES.txt
+        buildPhase: resources
+      - path: ../engine/src/main/assets/models
+        buildPhase: resources
+    preBuildScripts:
+      - name: Generate develop shaders
+        script: shaders/gen.sh
+        inputFiles:
+          - $(SRCROOT)/../shaders/develop.glsl
+          - $(SRCROOT)/../shaders/develop.vert
+          - $(SRCROOT)/../shaders/main_body.glsl
+          - $(SRCROOT)/../shaders/film/film.glsl
+          - $(SRCROOT)/shaders/gen.sh
+        outputFiles:
+          - $(SRCROOT)/build/generated/develop_vert.metal
+          - $(SRCROOT)/build/generated/develop_frag.metal
+          - $(SRCROOT)/build/generated/develop_export.metal
+          - $(SRCROOT)/build/generated/DevelopLayout.swift
+    dependencies:
+      - framework: native/out/RawBoyNative.xcframework
+        embed: false
+      - framework: native/out/RawBoyJpeg.xcframework
+        embed: false
+      # MediaPipe Tasks (static; mediapipe/fetch.sh), linked into the engine with its graph library as the pods do.
+      - framework: mediapipe/out/MediaPipeTasksVision/frameworks/MediaPipeTasksVision.xcframework
+        embed: false
+      - framework: mediapipe/out/MediaPipeTasksCommon/frameworks/MediaPipeTasksCommon.xcframework
+        embed: false
+      - sdk: Accelerate.framework
+      - sdk: CoreMedia.framework
+      - sdk: AVFoundation.framework
+      - sdk: CoreVideo.framework
+      - sdk: CoreImage.framework
+      - sdk: libc++.tbd
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.rawboy.engine
+        GENERATE_INFOPLIST_FILE: YES
+        MTL_LANGUAGE_REVISION: Metal21
+        # Optimised in Debug too: the engine's pixel loops are ~10x slower unoptimised, and Debug is what goes on the phone.
+        SWIFT_OPTIMIZATION_LEVEL: -O
+        "OTHER_LDFLAGS[sdk=iphonesimulator*]": $(inherited) -ObjC -force_load "$(SRCROOT)/mediapipe/out/MediaPipeTasksCommon/frameworks/graph_libraries/libMediaPipeTasksCommon_simulator_graph.a"
+        "OTHER_LDFLAGS[sdk=iphoneos*]": $(inherited) -ObjC -force_load "$(SRCROOT)/mediapipe/out/MediaPipeTasksCommon/frameworks/graph_libraries/libMediaPipeTasksCommon_device_graph.a"
+  RawBoyFilmEngine:
+    # RawBoyEngine's sources for RawBoy Film (GPLv3): FILM_EDITION, the film shader (build/generated-film), the
+    # spektrafilm LUTs, THIRD_PARTY_NOTICES_FILM.txt, and RawBoyNativeFilm (no Adobe DNG SDK).
+    type: framework
+    platform: iOS
+    sources:
+      - path: Engine
+      - path: build/generated-film
+      - path: ../luts
+        type: folder
+        buildPhase: resources
+      - path: ../licenses/THIRD_PARTY_NOTICES_FILM.txt
+        buildPhase: resources
+      - path: ../engine/src/main/assets/models
+        buildPhase: resources
+    preBuildScripts:
+      - name: Generate develop shaders
+        script: shaders/gen.sh
+        inputFiles:
+          - $(SRCROOT)/../shaders/develop.glsl
+          - $(SRCROOT)/../shaders/develop.vert
+          - $(SRCROOT)/../shaders/main_body.glsl
+          - $(SRCROOT)/../shaders/film/film.glsl
+          - $(SRCROOT)/shaders/gen.sh
+        outputFiles:
+          - $(SRCROOT)/build/generated-film/develop_vert.metal
+          - $(SRCROOT)/build/generated-film/develop_frag.metal
+          - $(SRCROOT)/build/generated-film/develop_export.metal
+          - $(SRCROOT)/build/generated-film/DevelopLayout.swift
+    dependencies:
+      - framework: native/out/RawBoyNativeFilm.xcframework
+        embed: false
+      - framework: native/out/RawBoyJpeg.xcframework
+        embed: false
+      - framework: mediapipe/out/MediaPipeTasksVision/frameworks/MediaPipeTasksVision.xcframework
+        embed: false
+      - framework: mediapipe/out/MediaPipeTasksCommon/frameworks/MediaPipeTasksCommon.xcframework
+        embed: false
+      - sdk: Accelerate.framework
+      - sdk: CoreMedia.framework
+      - sdk: AVFoundation.framework
+      - sdk: CoreVideo.framework
+      - sdk: CoreImage.framework
+      - sdk: libc++.tbd
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.rawboy.engine.film
+        GENERATE_INFOPLIST_FILE: YES
+        MTL_LANGUAGE_REVISION: Metal21
+        SWIFT_OPTIMIZATION_LEVEL: -O
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) FILM_EDITION
+        "OTHER_LDFLAGS[sdk=iphonesimulator*]": $(inherited) -ObjC -force_load "$(SRCROOT)/mediapipe/out/MediaPipeTasksCommon/frameworks/graph_libraries/libMediaPipeTasksCommon_simulator_graph.a"
+        "OTHER_LDFLAGS[sdk=iphoneos*]": $(inherited) -ObjC -force_load "$(SRCROOT)/mediapipe/out/MediaPipeTasksCommon/frameworks/graph_libraries/libMediaPipeTasksCommon_device_graph.a"
+  RawBoyCamera:
+    type: application
+    platform: iOS
+    sources:
+      - path: Camera
+        excludes: ["film/**"]
+    dependencies:
+      - target: RawBoyEngine
+      - framework: native/out/RawBoyNative.xcframework
+      - framework: native/out/RawBoyJpeg.xcframework
+    info:
+      path: build/generated/Camera-Info.plist
+      properties:
+        CFBundleDisplayName: RawBoy Camera
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIRequiresFullScreen: true
+        NSCameraUsageDescription: RawBoy Camera takes RAW photos and shows them developed live.
+        NSPhotoLibraryUsageDescription: RawBoy Camera saves photos into its own albums in your library.
+        NSPhotoLibraryAddUsageDescription: RawBoy Camera saves photos to your library.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.rawboy.camera
+        PRODUCT_NAME: RawBoyCamera
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Color.accentColor (used across the UI) follows this, not .tint: without it, it is system blue.
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  RawBoyFilm:
+    # RawBoy Camera with spektrafilm film stocks (GPLv3; Camera/film/Edition.swift). Installs next to RawBoy Camera.
+    type: application
+    platform: iOS
+    sources:
+      - path: Camera
+        excludes: ["standard/**"]
+    dependencies:
+      - target: RawBoyFilmEngine
+      - framework: native/out/RawBoyNativeFilm.xcframework
+      - framework: native/out/RawBoyJpeg.xcframework
+    info:
+      path: build/generated/Film-Info.plist
+      properties:
+        CFBundleDisplayName: RawBoy Film
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIRequiresFullScreen: true
+        NSCameraUsageDescription: RawBoy Film takes RAW photos and shows them developed live as film.
+        NSPhotoLibraryUsageDescription: RawBoy Film saves photos into its own albums in your library.
+        NSPhotoLibraryAddUsageDescription: RawBoy Film saves photos to your library.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.rawboy.camera.film
+        PRODUCT_NAME: RawBoyFilm
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) FILM_EDITION
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  RawBoyEngineTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: EngineTests
+    dependencies:
+      - target: RawBoyEngine
+      - framework: native/out/RawBoyNative.xcframework
+      - framework: native/out/RawBoyJpeg.xcframework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.rawboy.engine.tests
+        GENERATE_INFOPLIST_FILE: YES
+  RawBoyFilmEngineTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: FilmEngineTests
+    dependencies:
+      - target: RawBoyFilmEngine
+      - framework: native/out/RawBoyNativeFilm.xcframework
+      - framework: native/out/RawBoyJpeg.xcframework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.rawboy.engine.film.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  RawBoyFilm:
+    build:
+      targets:
+        RawBoyFilm: all
+    run:
+      config: Debug
+  RawBoyFilmEngineTests:
+    build:
+      targets:
+        RawBoyFilmEngineTests: all
+    test:
+      targets:
+        - RawBoyFilmEngineTests
+  RawBoyCamera:
+    build:
+      targets:
+        RawBoyCamera: all
+    run:
+      config: Debug
+  RawBoyEngineTests:
+    build:
+      targets:
+        RawBoyEngineTests: all
+    test:
+      targets:
+        - RawBoyEngineTests
