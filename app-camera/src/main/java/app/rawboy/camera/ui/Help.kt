@@ -26,6 +26,7 @@ internal val CAMERA_HELP = listOf(
         "Top bar",
         listOf(
             HelpItem("RAW", "Keep the DNG next to the JPEG (lit) or not (struck through)."),
+            HelpItem("Burst (stacked frames)", "Merge 8 frames into each shot without flash for less noise (lit) or take one frame (dimmed). Same as the Settings switch."),
             HelpItem("Flash", "Cycles Off, Flash and Focus-flash (the light helps focusing, then the flash fires)."),
             HelpItem("Settings", "JPEG quality, Smaller photos, Merge 8 frames (each shot merges a burst of raws: less noise; hold still), Histogram (live red, green and blue levels in a corner of the viewfinder), Remember camera & settings and the licences."),
         ),

@@ -60,6 +60,8 @@ public enum AutoTone {
      */
     private static let lumaDenoisePerStd: Float = 2000
     private static let colorDenoisePerStd: Float = 2600
+    /** The auto Denoise (luma) is this much of what the measured fit gives (see AutoTone.kt). */
+    private static let lumaDenoiseScale: Float = 0.8
 
     /**
      * [noise]: the photo's measured noise; when measured it sets Denoise, Color denoise and sharpening, else they come
@@ -152,12 +154,12 @@ public enum AutoTone {
     /** (denoise, colour denoise, sharpening) for the measured [noise] at auto [exposure] (EV). */
     public static func measuredNoiseSettings(_ noise: NoiseLevel, exposure: Float) -> (Float, Float, Float) {
         let shown = exp2f((exposure + baseExposureEv) / 2)
-        let luma = Float((lumaDenoisePerStd * noise.luma * shown).roundToInt().clamped(0, 100))
+        let full = Float((lumaDenoisePerStd * noise.luma * shown).roundToInt().clamped(0, 100))
         let color = Float((colorDenoisePerStd * noise.chroma * shown).roundToInt().clamped(0, 100))
         let sharpening: Float
-        if luma <= 20 { sharpening = 15 } else if luma <= 45 { sharpening = 15 - (luma - 20) / 25 * 5 }
-        else if luma <= 65 { sharpening = 10 - (luma - 45) / 20 * 5 } else { sharpening = 5 }
-        return (luma, color, Float(sharpening.roundToInt()))
+        if full <= 20 { sharpening = 15 } else if full <= 45 { sharpening = 15 - (full - 20) / 25 * 5 }
+        else if full <= 65 { sharpening = 10 - (full - 45) / 20 * 5 } else { sharpening = 5 }
+        return (Float((full * lumaDenoiseScale).roundToInt()), color, Float(sharpening.roundToInt()))
     }
 
     /** (denoise, colour denoise = nil: follows denoise, sharpening) by ISO, interpolated between measured points; ISO 0 = unknown. */

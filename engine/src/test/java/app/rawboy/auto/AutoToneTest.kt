@@ -23,9 +23,9 @@ class AutoToneTest {
     @Test
     fun measuredNoiseSetsBothDenoisesAndEasesSharpening() {
         // Canon G9 at ISO 400, lifted 2 EV: heavy noise; colour more than luma.
-        assertEquals(Triple(55f, 93f, 8f), AutoTone.measuredNoiseSettings(NoiseLevel(0.0107f, 0.0141f), 2f))
+        assertEquals(Triple(44f, 93f, 8f), AutoTone.measuredNoiseSettings(NoiseLevel(0.0107f, 0.0141f), 2f))
         // A clean Pixel shot at the phone's own exposure: a touch of denoise, full sharpening.
-        assertEquals(Triple(6f, 6f, 15f), AutoTone.measuredNoiseSettings(NoiseLevel(0.0023f, 0.0019f), 0f))
+        assertEquals(Triple(5f, 6f, 15f), AutoTone.measuredNoiseSettings(NoiseLevel(0.0023f, 0.0019f), 0f))
         // Very noisy: capped at 100.
         assertEquals(100f, AutoTone.measuredNoiseSettings(NoiseLevel(0.05f, 0.05f), 0f).second)
     }

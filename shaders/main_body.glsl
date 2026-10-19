@@ -8,7 +8,7 @@ void main() {
     vec2 uvG = (srcG - uInOrigin) / uInSpan;
     vec3 base = texture(uImage, uvG).rgb;
     vec3 x = base;
-    if (uDenoise > 0.0 || uColorDenoise > 0.0) x = denoise(uvG, x);
+    if (uDenoise > 0.0 || uColorDenoise > 0.0) x = denoise(uvG, srcG, x);
     if (perPlane) {
         // Lateral chromatic aberration: shift R and B to their own warped positions.
         vec2 uvR = (fromSensor(warpPlane(sQ, 0)) - uInOrigin) / uInSpan;

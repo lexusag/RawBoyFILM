@@ -180,6 +180,7 @@ fun CameraScreen(vm: CameraViewModel, requestPermission: () -> Unit) {
                         .padding(start = 12.dp),
                 )
                 RawButton(settings.keepDng) { vm.setKeepDng(!settings.keepDng) }
+                BurstButton(settings.mergeBurst) { vm.setMergeBurst(!settings.mergeBurst) }
                 if (flashAvailable) FlashButton(settings.flash, vm::cycleFlash)
                 HelpButton(appName, CAMERA_HELP, onOpenChange = { showHelp = it })
                 IconButton(onClick = { showSettings = true }) {
@@ -541,6 +542,18 @@ private fun RawButton(keep: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** Merge 8 frames (the same setting as in Settings): the burst icon lit when on, dimmed when off. */
+@Composable
+private fun BurstButton(on: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.semantics { stateDescription = if (on) "On" else "Off" }) {
+        Icon(
+            BurstIcon,
+            contentDescription = "Merge 8 frames",
+            tint = if (on) MaterialTheme.colorScheme.primary else LocalContentColor.current.copy(alpha = 0.6f),
+        )
+    }
+}
+
 /** Off -> Flash -> Focus-flash (the bolt with "AF": the light comes on to focus and meter first). */
 @Composable
 private fun FlashButton(mode: FlashMode, onClick: () -> Unit) {
@@ -586,6 +599,15 @@ private val CameraSwitchIcon: ImageVector by lazy {
             "M12,14c-1.1,0 -2,-0.9 -2,-2c0,-1.1 0.9,-2 2,-2s2,0.9 2,2C14,13.1 13.1,14 12,14z" +
             "M8.57,0.51l4.48,4.48V2.04c4.72,0.47 8.48,4.23 8.95,8.95c0,0 2,0 2,0C23.34,3.02 15.49,-1.59 8.57,0.51z" +
             "M10.95,21.96C6.23,21.49 2.47,17.73 2,13.01c0,0 -2,0 -2,0c0.66,7.97 8.51,12.58 15.43,10.48l-4.48,-4.48V21.96z",
+    )
+}
+
+/** Material "burst_mode" icon (Apache 2.0): a stack of frames. */
+private val BurstIcon: ImageVector by lazy {
+    icon(
+        "BurstMode",
+        "M1,5h2v14H1zM5,5h2v14H5zM22,5H10c-0.55,0 -1,0.45 -1,1v12c0,0.55 0.45,1 1,1h12c0.55,0 1,-0.45 1,-1V6" +
+            "c0,-0.55 -0.45,-1 -1,-1zM11,17l2.5,-3.15L15.29,16l2.5,-3.22L21,17H11z",
     )
 }
 
