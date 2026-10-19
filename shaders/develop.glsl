@@ -227,6 +227,20 @@ vec3 compressGamut(vec3 c) {
     return ach - d * ach;
 }
 
+// Integer hashes seeded by full-resolution position (denoise taps, grain), so preview and export tiles match.
+uvec3 pcg3d(uvec3 v) {
+    v = v * 1664525u + 1013904223u;
+    v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
+    v ^= v >> 16u;
+    v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
+    return v;
+}
+
+vec3 unitHash(ivec2 cell, uint seed) {
+    uvec3 h = pcg3d(uvec3(uvec2(cell + 32768), seed));
+    return vec3(h >> 8u) * (1.0 / 16777216.0); // [0, 1)
+}
+
 // Edge-aware denoise on scene-linear data. Shot noise has roughly constant
 // std in sqrt space, so filtering there treats shadows and highlights alike.
 // Luma (uDenoise): 5x5 bilateral. Chroma (uColorDenoise; blotchy, low frequency): sparse 7x7, radius 9 px.
@@ -234,11 +248,25 @@ vec3 compressGamut(vec3 c) {
 // chroma 7x7 at stride 6 (radius 18 px), for the low-frequency grain and colour blotches the fine stage can't reach.
 // Its range weights compare against the fine result, so edges the fine stage kept stay.
 // Each part has its own strength; with both equal this is the single denoise of before.
+// The sparse stages don't sample a fixed lattice: every tap sits at a random point of its own cell (stratified,
+// seeded by the full-resolution pixel), read with bilinear filtering. On a fixed lattice at stride 6 neighbouring
+// pixels 6 px apart averaged almost the same samples, so the leftover colour noise took a 6 px grid pattern
+// (blocky blotches on high-ISO camera raws); jittered, what's left is fine and uncorrelated. Cells are shrunk so
+// the outermost tap still lands within the old radius (margins unchanged), and spatial weights use the real offset.
 vec3 sqrtSample(vec2 uv) {
     return sqrt(max(texture(uImage, uv).rgb, 0.0));
 }
 
-vec3 denoise(vec2 uv, vec3 rgb) {
+// Offset in full-res pixels of tap (i, j) of an n-ring sparse stage with the given radius: a random point in its cell.
+// The centre tap stays on the pixel itself, so the fine stages' weight sums never drop below 1.
+vec2 jitteredTap(int i, int j, int n, float radius, ivec2 pixel, uint stage) {
+    if (i == 0 && j == 0) return vec2(0.0);
+    float cell = radius / (float(n) + 0.5);
+    vec3 r = unitHash(pixel, stage + uint((j + n) * 16 + i + n));
+    return (vec2(i, j) + r.xy - 0.5) * cell;
+}
+
+vec3 denoise(vec2 uv, vec2 fullPx, vec3 rgb) {
     vec3 c = sqrt(max(rgb, 0.0));
     float cl = (c.r + c.g + c.b) / 3.0;
     vec3 cc = c - cl;
@@ -251,6 +279,7 @@ vec3 denoise(vec2 uv, vec3 rgb) {
     float invLumaC = 1.0 / (8.0 * sigmaC * sigmaC);   // the chroma filter's luma edge guard
     float invChroma = 1.0 / (18.0 * sigmaC * sigmaC); // range h = 3 sigma
     vec2 px = uTexel * uPixelScale;                    // one full-res pixel in uv
+    ivec2 pix = ivec2(floor(fullPx));
 
     float fineL = cl;
     if (uDenoise > 0.0) {
@@ -275,7 +304,7 @@ vec3 denoise(vec2 uv, vec3 rgb) {
         float cW = 0.0;
         for (int j = -3; j <= 3; ++j) {
             for (int i = -3; i <= 3; ++i) {
-                vec2 o = vec2(i, j) * 3.0;
+                vec2 o = jitteredTap(i, j, 3, 9.0, pix, 0x51ed00u);
                 vec3 s = sqrtSample(uv + o * px);
                 float l = (s.r + s.g + s.b) / 3.0;
                 vec3 dc = (s - l) - cc;
@@ -293,7 +322,7 @@ vec3 denoise(vec2 uv, vec3 rgb) {
         float wlW = 0.0;
         for (int j = -2; j <= 2; ++j) {
             for (int i = -2; i <= 2; ++i) {
-                vec2 o = vec2(i, j) * 3.0;
+                vec2 o = jitteredTap(i, j, 2, 6.0, pix, 0x2c1b00u);
                 vec3 s = sqrtSample(uv + o * px);
                 float l = (s.r + s.g + s.b) / 3.0;
                 float d = l - fineL;
@@ -309,7 +338,7 @@ vec3 denoise(vec2 uv, vec3 rgb) {
         float wcW = 0.0;
         for (int j = -3; j <= 3; ++j) {
             for (int i = -3; i <= 3; ++i) {
-                vec2 o = vec2(i, j) * 6.0;
+                vec2 o = jitteredTap(i, j, 3, 18.0, pix, 0x9a3f00u);
                 vec3 s = sqrtSample(uv + o * px);
                 float l = (s.r + s.g + s.b) / 3.0;
                 vec3 dc = (s - l) - fineC;
@@ -320,6 +349,28 @@ vec3 denoise(vec2 uv, vec3 rgb) {
             }
         }
         fineC = mix(fineC, wcSum / wcW, uColorDenoiseWide);
+
+        // Coarsest colour scale, from the 512 px base copy (~16 px per texel on a 50 MP raw, ~8 on a phone): colour
+        // blotches 20-100 px across outlive the 18 px stage, and raising the exposure turns them into blotchy
+        // patches. 7x7 texels at stride 1 (a sparser stride drew a 2-texel grid), Gaussian sigma ~1.8 texels.
+        // Range-weighted against the result so far, with tighter luma and colour guards than the other stages
+        // (the blotches are faint), so colour edges and small features (eyes, lips) stay. Skipped without a base
+        // copy (uBaseTexel 1).
+        vec2 buv = fullPx / uImageSize;
+        vec3 bSum = vec3(0.0);
+        float bW = 0.0;
+        for (int j = -3; j <= 3 && uBaseTexel.x < 0.5; ++j) {
+            for (int i = -3; i <= 3; ++i) {
+                vec3 s = sqrt(max(texture(uBase, buv + vec2(i, j) * uBaseTexel).rgb, 0.0));
+                float l = (s.r + s.g + s.b) / 3.0;
+                vec3 dc = (s - l) - fineC;
+                float dl = l - fineL;
+                float w = exp(-float(i * i + j * j) * 0.16 - dl * dl * invLumaC - dot(dc, dc) * invChroma * 4.0);
+                bSum += (s - l) * w;
+                bW += w;
+            }
+        }
+        if (bW > 1e-4) fineC = mix(fineC, bSum / bW, uColorDenoiseWide);
     }
     vec3 outSqrt = max(vec3(fineL) + fineC, 0.0);
     return outSqrt * outSqrt;
@@ -329,19 +380,6 @@ vec3 denoise(vec2 uv, vec3 rgb) {
 // Sparse convolution noise: one randomly placed soft Gaussian "grain" per cell,
 // cells sized relative to the image (like a film frame), mostly luminance with
 // some per-layer colour. Seeded by full-resolution position so tiles match.
-uvec3 pcg3d(uvec3 v) {
-    v = v * 1664525u + 1013904223u;
-    v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
-    v ^= v >> 16u;
-    v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
-    return v;
-}
-
-vec3 unitHash(ivec2 cell, uint seed) {
-    uvec3 h = pcg3d(uvec3(uvec2(cell + 32768), seed));
-    return vec3(h >> 8u) * (1.0 / 16777216.0); // [0, 1)
-}
-
 // One field of soft grains on cells of `size` full-resolution pixels, ~unit variance per channel.
 vec3 grainField(vec2 fullPx, float size, uint seed) {
     vec2 q = fullPx / size;

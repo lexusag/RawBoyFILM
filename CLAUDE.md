@@ -454,7 +454,7 @@ Gradle modules: `:engine` (Android library, namespace `app.rawboy.engine`; Kotli
 - **Measured auto denoise** (Pro's Auto button, Auto; not Camera): `noise.cpp` `estimateNoise` (JNI
   `RawNative.noiseLevel`, `rb_noise_level`, wasm `noiseLevel`) → `NoiseLevel` (luma, chroma std in the shader's sqrt
   domain) → `AutoTone.measuredNoiseSettings`: slider = 2000 (luma) / 2600 (colour) × std × 2^((exposure + 0.7) / 2),
-  sharpening 15 → 5 as luma denoise grows; sets `colorDenoise` explicitly (ISO fallback leaves it null). ~400 patches
+  sharpening 15 → 5 as that luma value grows, then luma × 0.8 (`LUMA_DENOISE_SCALE`, 2026-10-18: the full fit read too smooth); sets `colorDenoise` explicitly (ISO fallback leaves it null). ~400 patches
   of 84 px, 16 px blocks: luma minus Gaussian σ 1.5, chroma minus σ 6; per 1 EV band the 10th percentile, weighted by
   band area (deep-shadow read noise counts). Checks: a 3×3 residual underestimated coarse (correlated) noise of the
   old Canon G9; a 2×2-binned one read texture on iPhone ProRAW as noise. Calibrated on `.raw/` with 100% crops through
@@ -601,7 +601,12 @@ Gradle modules: `:engine` (Android library, namespace `app.rawboy.engine`; Kotli
   device rotation (`Spot.turned`; iOS reads `UIDevice.orientation`), since the photo is level and the viewfinder is
   portrait. The front camera's preview crop isn't applied to the shot's spot (a few % off). Ports: `MeterArea.kt/.swift/.ts`.
 - Denoise coarse stage: `uDenoiseWide` = (denoise − 65) / 35 (`ShaderParams.wideDenoise`); luma 5×5 at stride 3,
-  chroma 7×7 at stride 6 (18 px), range weights against the fine result. Luma and chroma are separate
+  chroma 7×7 at stride 6 (18 px), range weights against the fine result. The sparse stages' taps are **jittered** per
+  pixel (`jitteredTap`: a random point of each cell, hashed from the full-res pixel, centre tap fixed, cells shrunk to
+  keep the old radius): on a fixed lattice the leftover chroma repeated every 6 px (blocky high-ISO colour noise).
+  After the 18 px chroma stage, a 7×7 stage on `uBase` (512 px, ~16 px/texel on 50 MP; stride 1: stride 2 drew a grid) takes the coarsest colour
+  blotches (skipped when `uBaseTexel` is 1, i.e. no base bound); chroma only.
+  Luma and chroma are separate
   (`uDenoise`/`uDenoiseWide` vs `uColorDenoise`/`uColorDenoiseWide`): `DevelopParams.colorDenoise` is nullable, null =
   follows `denoise` (`effectiveColorDenoise`), so Auto, Camera, AutoTone and pre-split edits/presets need no change; only
   Pro's Color denoise slider sets it (moving Luma pins it). A Detail preset without `colorDenoise` decodes it as null.
