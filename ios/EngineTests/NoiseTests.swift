@@ -5,9 +5,9 @@ import XCTest
 final class NoiseTests: XCTestCase {
     func testMeasuredNoiseSetsBothDenoisesAndEasesSharpening() {
         let g9 = AutoTone.measuredNoiseSettings(NoiseLevel(luma: 0.0107, chroma: 0.0141), exposure: 2)
-        XCTAssertEqual([g9.0, g9.1, g9.2], [55, 93, 8])
+        XCTAssertEqual([g9.0, g9.1, g9.2], [44, 93, 8])
         let pixel = AutoTone.measuredNoiseSettings(NoiseLevel(luma: 0.0023, chroma: 0.0019), exposure: 0)
-        XCTAssertEqual([pixel.0, pixel.1, pixel.2], [6, 6, 15])
+        XCTAssertEqual([pixel.0, pixel.1, pixel.2], [5, 6, 15])
         XCTAssertEqual(AutoTone.measuredNoiseSettings(NoiseLevel(luma: 0.05, chroma: 0.05), exposure: 0).1, 100)
     }
 

@@ -67,6 +67,13 @@ object AutoTone {
     private const val LUMA_DENOISE_PER_STD = 2000f
     private const val COLOR_DENOISE_PER_STD = 2600f
 
+    /**
+     * The measured auto Denoise (luma) is this much of what the fit above gives: the full amount read too smooth (owner,
+     * 2026-10-18). Colour denoise and sharpening stay where the full amount puts them. The ISO table (Camera, unmeasured
+     * photos) is unchanged.
+     */
+    private const val LUMA_DENOISE_SCALE = 0.8f
+
     /** Scene-linear value AgX maps to display white (0.18 * 2^4.03). */
     private const val DISPLAY_WHITE = 2.95f
 
@@ -162,15 +169,15 @@ object AutoTone {
      */
     fun measuredNoiseSettings(noise: NoiseLevel, exposure: Float): Triple<Float, Float, Float> {
         val shown = exp2((exposure + BASE_EXPOSURE_EV) / 2f)
-        val luma = (LUMA_DENOISE_PER_STD * noise.luma * shown).roundToInt().coerceIn(0, 100).toFloat()
+        val full = (LUMA_DENOISE_PER_STD * noise.luma * shown).roundToInt().coerceIn(0, 100).toFloat()
         val color = (COLOR_DENOISE_PER_STD * noise.chroma * shown).roundToInt().coerceIn(0, 100).toFloat()
         val sharpening = when {
-            luma <= 20f -> 15f
-            luma <= 45f -> 15f - (luma - 20f) / 25f * 5f
-            luma <= 65f -> 10f - (luma - 45f) / 20f * 5f
+            full <= 20f -> 15f
+            full <= 45f -> 15f - (full - 20f) / 25f * 5f
+            full <= 65f -> 10f - (full - 45f) / 20f * 5f
             else -> 5f
         }.roundToInt().toFloat()
-        return Triple(luma, color, sharpening)
+        return Triple((full * LUMA_DENOISE_SCALE).roundToInt().toFloat(), color, sharpening)
     }
 
     /** (denoise, colour denoise = null: follows denoise, sharpening) by ISO, interpolated between measured points; ISO 0 = unknown. */
