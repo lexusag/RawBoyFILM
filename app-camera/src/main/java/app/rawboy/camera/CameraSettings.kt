@@ -15,7 +15,7 @@ data class CameraSettings(
     /** JPEG quality, [MIN_QUALITY]..100. */
     val jpegQuality: Int = 95,
     /** Keep the raw as DNG in Pictures/<Edition.FOLDER>/RAW. */
-    val keepDng: Boolean = true,
+    val keepDng: Boolean = false,
     /** Save photos at [SMALL_LONG_SIDE] px on the long side instead of full size. */
     val smallExport: Boolean = true,
     /**
