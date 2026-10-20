@@ -28,7 +28,7 @@ struct CameraSettings: Equatable {
     /** JPEG quality, minQuality...100. */
     var jpegQuality = 95
     /** Keep the raw as DNG in Photos › RawBoy Camera RAW. */
-    var keepDng = true
+    var keepDng = false
     /** Save photos at smallLongSide px on the long side instead of full size. */
     var smallExport = true
     /**
