@@ -88,12 +88,32 @@ fragment float4 boostFragment(PassOut in [[stage_in]], texture2d<float> source [
     return float4(c * (1.0 + 6.0 * t * t), 1.0);
 }
 
-/** 4x box downscale: four bilinear taps, each the mean of 2x2 source texels. */
+/** 8x box downscale: 4x4 bilinear taps, each the mean of 2x2 source texels. */
 fragment float4 boxDownFragment(PassOut in [[stage_in]], texture2d<float> source [[texture(0)]], sampler s [[sampler(0)]],
                                 constant float2& texel [[buffer(0)]]) {
-    float3 sum = source.sample(s, in.uv + float2(-1, -1) * texel).rgb
-               + source.sample(s, in.uv + float2(1, -1) * texel).rgb
-               + source.sample(s, in.uv + float2(-1, 1) * texel).rgb
-               + source.sample(s, in.uv + float2(1, 1) * texel).rgb;
-    return float4(sum * 0.25, 1.0);
+    float3 sum = float3(0.0);
+    for (int j = 0; j < 4; ++j) {
+        for (int i = 0; i < 4; ++i) {
+            sum += source.sample(s, in.uv + float2(float(2 * i - 3), float(2 * j - 3)) * texel).rgb;
+        }
+    }
+    return float4(sum * 0.0625, 1.0);
+}
+
+/** Same-size pass: BloomTail's kernel (keep the two in step), edges clamped by the sampler. */
+fragment float4 tailScatterFragment(PassOut in [[stage_in]], texture2d<float> source [[texture(0)]], sampler s [[sampler(0)]],
+                                    constant float2& texel [[buffer(0)]]) {
+    float3 sum = float3(0.0);
+    float ws = 0.0;
+    for (int j = -6; j <= 6; ++j) {
+        for (int i = -6; i <= 6; ++i) {
+            float r2 = float(i * i + j * j);
+            float rim = 1.0 - r2 / 49.0;
+            if (rim <= 0.0) continue;
+            float w = pow(1.0 + sqrt(r2) / 0.6, -2.2) * rim * rim;
+            sum += w * source.sample(s, in.uv + float2(float(i), float(j)) * texel).rgb;
+            ws += w;
+        }
+    }
+    return float4(sum / ws, 1.0);
 }

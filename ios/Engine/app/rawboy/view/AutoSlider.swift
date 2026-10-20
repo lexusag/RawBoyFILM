@@ -13,6 +13,8 @@ public struct ValueSlider: View {
     var format: (Float) -> String
     let stacked: Bool
     let onChange: (Float) -> Void
+    /** The value when the current drag on a signed slider began. */
+    @State private var dragStart: Float?
 
     public init(_ label: String, value: Float, range: ClosedRange<Float>, defaultValue: Float,
                 format: ((Float) -> String)? = nil, stacked: Bool = false, onChange: @escaping (Float) -> Void) {
@@ -59,14 +61,45 @@ public struct ValueSlider: View {
     }
 
     @ViewBuilder private var slider: some View {
-        let native = Slider(value: Binding(get: { Double(value.clamped(range)) }, set: { onChange(Float($0)) }),
-                            in: Double(range.lowerBound)...Double(range.upperBound))
-            .simultaneousGesture(TapGesture(count: 2).onEnded { onChange(defaultValue) })
         if range.lowerBound < 0 && range.upperBound > 0 {
-            // The system slider still takes the touches; it's just not drawn.
-            native.opacity(0.02).background { SignedSliderTrack(value: value, range: range) }
+            signedSlider
         } else {
-            native
+            Slider(value: Binding(get: { Double(value.clamped(range)) }, set: { onChange(Float($0)) }),
+                   in: Double(range.lowerBound)...Double(range.upperBound))
+                .simultaneousGesture(TapGesture(count: 2).onEnded { onChange(defaultValue) })
+        }
+    }
+
+    /**
+     * The signed track with its own drag: a drag anywhere on the row moves the value by the distance dragged, as
+     * grabbing the thumb would. A nearly transparent system Slider over the track used to take the touches, but on
+     * iOS 26 it no longer received them (Camera's Brightness and Warmth didn't move).
+     */
+    private var signedSlider: some View {
+        GeometryReader { g in
+            let span = range.upperBound - range.lowerBound
+            let width = max(Float(g.size.width - 2 * SignedSliderTrack.inset), 1)
+            SignedSliderTrack(value: value, range: range)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 2)
+                    .onChanged { d in
+                        let start = dragStart ?? value
+                        if dragStart == nil { dragStart = start }
+                        onChange((start + Float(d.translation.width) / width * span).clamped(range))
+                    }
+                    .onEnded { _ in dragStart = nil })
+                .simultaneousGesture(TapGesture(count: 2).onEnded { onChange(defaultValue) })
+        }
+        .accessibilityElement()
+        .accessibilityLabel(label)
+        .accessibilityValue(format(value))
+        .accessibilityAdjustableAction { direction in
+            let step = (range.upperBound - range.lowerBound) / 20
+            switch direction {
+            case .increment: onChange((value + step).clamped(range))
+            case .decrement: onChange((value - step).clamped(range))
+            @unknown default: break
+            }
         }
     }
 
@@ -78,8 +111,8 @@ public struct ValueSlider: View {
 
 /**
  * Track and thumb of a signed slider (−100…100 and the like): filled from 0 to the value, with a mark at 0. The
- * system Slider always fills from the left end, so every slider at 0 looked half applied; draw this behind a
- * nearly transparent system Slider, which keeps the touches and VoiceOver.
+ * system Slider always fills from the left end, so every slider at 0 looked half applied. ValueSlider adds the drag
+ * and VoiceOver.
  */
 public struct SignedSliderTrack: View {
     let value: Float
@@ -90,9 +123,12 @@ public struct SignedSliderTrack: View {
         self.range = range
     }
 
+    /** Where the thumb's centre stops at either end. */
+    static let inset: CGFloat = 12
+
     public var body: some View {
         GeometryReader { g in
-            let inset: CGFloat = 12 // roughly where the system thumb's centre stops
+            let inset = Self.inset
             let x = { (v: Float) -> CGFloat in
                 inset + CGFloat((v.clamped(range) - range.lowerBound) / (range.upperBound - range.lowerBound)) * (g.size.width - 2 * inset)
             }

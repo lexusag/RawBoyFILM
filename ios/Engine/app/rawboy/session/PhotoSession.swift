@@ -39,7 +39,7 @@ public final class PhotoSession: ObservableObject {
     // GPUs on every supported iPhone take 16k textures; 2048 matches Android's preview.
     public nonisolated static let previewMaxDimension = 2048
     public nonisolated static let baseMaxDimension = 512
-    public nonisolated static let bloomTailMaxDimension = 128
+    public nonisolated static let bloomTailMaxDimension = 64
 
     /** What [open] found in the file. */
     public struct Opened {
@@ -491,10 +491,10 @@ public final class PhotoSession: ObservableObject {
         return p
     }
 
-    /** The highlight-boosted halo (512 px) and tail (128 px) copies bloom scatters light from. */
+    /** The highlight-boosted halo (512 px) and tail (64 px, already scattered) copies bloom scatters light from. */
     public nonisolated static func bloomSourcesOf(_ image: RawImage) -> BloomSources {
         BloomSources(halo: image.createPreview(maxDimension: baseMaxDimension, boostHighlights: true),
-                     tail: image.createPreview(maxDimension: bloomTailMaxDimension, boostHighlights: true))
+                     tail: BloomTail.scatter(image.createPreview(maxDimension: bloomTailMaxDimension, boostHighlights: true)))
     }
 
     private struct Loaded: @unchecked Sendable {

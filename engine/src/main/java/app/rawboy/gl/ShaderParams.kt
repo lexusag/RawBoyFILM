@@ -154,7 +154,7 @@ class ShaderParams(
                 localContrast = p.localContrast / 100f,
                 highpassContrast = p.highpassContrast / 100f,
                 base = base,
-                bloom = p.bloom / 100f * 0.35f, // up to 35% of the light scattered
+                bloom = p.bloom / 100f * (0.35f + 0.4f * p.bloom / 100f), // up to 75% of the light scattered
                 bloomHalo = bloomSources?.halo,
                 bloomTail = bloomSources?.tail,
                 skinRetouch = p.skinRetouch / 100f,

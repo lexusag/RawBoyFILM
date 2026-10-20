@@ -176,7 +176,7 @@ public final class ShaderParams: @unchecked Sendable {
             localContrast: p.localContrast / 100,
             highpassContrast: p.highpassContrast / 100,
             base: base,
-            bloom: p.bloom / 100 * 0.35,  // up to 35% of the light scattered
+            bloom: p.bloom / 100 * (0.35 + 0.4 * p.bloom / 100),  // up to 75% of the light scattered
             bloomHalo: bloomSources?.halo,
             bloomTail: bloomSources?.tail,
             skinRetouch: p.skinRetouch / 100,
