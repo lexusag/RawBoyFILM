@@ -58,6 +58,7 @@ public final class ViewfinderRenderer: NSObject, MTKViewDelegate, @unchecked Sen
     private let copyPipeline: MTLRenderPipelineState
     private let boostPipeline: MTLRenderPipelineState
     private let boxDownPipeline: MTLRenderPipelineState
+    private let tailScatterPipeline: MTLRenderPipelineState
     private let mipSampler: MTLSamplerState
 
     private var pendingBuffer: CVPixelBuffer?
@@ -66,6 +67,7 @@ public final class ViewfinderRenderer: NSObject, MTKViewDelegate, @unchecked Sen
     private var linear: MTLTexture?
     private var small: MTLTexture?
     private var halo: MTLTexture?
+    private var tailRaw: MTLTexture?
     private var tail: MTLTexture?
     private var lastBase = Date.distantPast
     private var readbackInFlight = false
@@ -101,6 +103,7 @@ public final class ViewfinderRenderer: NSObject, MTKViewDelegate, @unchecked Sen
         copyPipeline = pipeline("copyFragment", .rgba16Float)
         boostPipeline = pipeline("boostFragment", .rgba16Float)
         boxDownPipeline = pipeline("boxDownFragment", .rgba16Float)
+        tailScatterPipeline = pipeline("tailScatterFragment", .rgba16Float)
         let s = MTLSamplerDescriptor()
         s.minFilter = .linear
         s.magFilter = .linear
@@ -214,10 +217,15 @@ public final class ViewfinderRenderer: NSObject, MTKViewDelegate, @unchecked Sen
         draw(commands, copyPipeline, into: small, from: linear)
         let halo = target(&self.halo, sw, sh, mipmapped: false)
         draw(commands, boostPipeline, into: halo, from: small)
-        let tail = target(&self.tail, tw, th, mipmapped: false)
+        let tailRaw = target(&self.tailRaw, tw, th, mipmapped: false)
         var texel = SIMD2<Float>(1 / Float(sw), 1 / Float(sh))
-        draw(commands, boxDownPipeline, into: tail, from: halo) { e in
+        draw(commands, boxDownPipeline, into: tailRaw, from: halo) { e in
             e.setFragmentBytes(&texel, length: MemoryLayout<SIMD2<Float>>.stride, index: 0)
+        }
+        let tail = target(&self.tail, tw, th, mipmapped: false)
+        var tailTexel = SIMD2<Float>(1 / Float(tw), 1 / Float(th))
+        draw(commands, tailScatterPipeline, into: tail, from: tailRaw) { e in
+            e.setFragmentBytes(&tailTexel, length: MemoryLayout<SIMD2<Float>>.stride, index: 0)
         }
 
         // Every so often the 512 px copy is read back for the auto develop, once the GPU has finished it: the

@@ -80,6 +80,7 @@ class ViewfinderRenderer(
     private var copy: PassProgram? = null
     private var boost: PassProgram? = null
     private var boxDown: PassProgram? = null
+    private var tailScatter: PassProgram? = null
     private var develop: DevelopProgram? = null
     private var quad: FullscreenQuad? = null
     private var lutTexture: LutTexture? = null
@@ -90,6 +91,7 @@ class ViewfinderRenderer(
     private val linear = Target()
     private val small = Target()
     private val halo = Target()
+    private val tailRaw = Target()
     private val tail = Target()
     private var lastBase = 0L
     private var viewWidth = 1
@@ -100,6 +102,7 @@ class ViewfinderRenderer(
         linear.reset()
         small.reset()
         halo.reset()
+        tailRaw.reset()
         tail.reset()
         pending = null
         pixelBuffer = 0
@@ -110,6 +113,7 @@ class ViewfinderRenderer(
         copy = PassProgram(PassProgram.COPY, trilinear = true)
         boost = PassProgram(PassProgram.BOOST, trilinear = false)
         boxDown = PassProgram(PassProgram.BOX_DOWN, trilinear = false)
+        tailScatter = PassProgram(PassProgram.TAIL_SCATTER, trilinear = false)
         develop = DevelopProgram(forExport = false)
         quad = FullscreenQuad()
         lutTexture = LutTexture()
@@ -212,7 +216,8 @@ class ViewfinderRenderer(
 
     /**
      * The copies a decoded raw gets from PhotoSession (base, bloomSourcesOf), from the linear frame: [small] the
-     * ~512 px base (trilinear, from mipmaps), [halo] the same highlight-boosted, [tail] that box-filtered to ~128 px.
+     * ~512 px base (trilinear, from mipmaps), [halo] the same highlight-boosted, [tail] that box-filtered to ~64 px
+     * and scattered by [BloomTail]'s kernel.
      */
     private fun makeCopies(sw: Int, sh: Int, tw: Int, th: Int) {
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, linear.texture)
@@ -223,9 +228,12 @@ class ViewfinderRenderer(
         halo.ensure(sw, sh, mipmapped = false)
         halo.bindForDrawing()
         boost!!.draw(quad!!, small.texture, sw, sh)
+        tailRaw.ensure(tw, th, mipmapped = false)
+        tailRaw.bindForDrawing()
+        boxDown!!.draw(quad!!, halo.texture, sw, sh)
         tail.ensure(tw, th, mipmapped = false)
         tail.bindForDrawing()
-        boxDown!!.draw(quad!!, halo.texture, sw, sh)
+        tailScatter!!.draw(quad!!, tailRaw.texture, tw, th)
     }
 
     /** The current buffer's data space (android.hardware.DataSpace), or 0 = unknown before Android 13. */
@@ -558,7 +566,7 @@ void main() {
     fragColor = vec4(c * (1.0 + 6.0 * t * t), 1.0);
 }
 """
-            /** 4x box downscale: four bilinear taps, each the mean of 2x2 source texels. */
+            /** 8x box downscale. */
             const val BOX_DOWN = """#version 300 es
 precision highp float;
 uniform sampler2D uSource;
@@ -566,11 +574,37 @@ uniform vec2 uSourceTexel;
 in vec2 vUp;
 out vec4 fragColor;
 void main() {
-    vec3 s = texture(uSource, vUp + vec2(-1.0, -1.0) * uSourceTexel).rgb
-           + texture(uSource, vUp + vec2(1.0, -1.0) * uSourceTexel).rgb
-           + texture(uSource, vUp + vec2(-1.0, 1.0) * uSourceTexel).rgb
-           + texture(uSource, vUp + vec2(1.0, 1.0) * uSourceTexel).rgb;
-    fragColor = vec4(s * 0.25, 1.0);
+    // 8x box: 4x4 bilinear taps, each the mean of 2x2 source texels.
+    vec3 s = vec3(0.0);
+    for (int j = 0; j < 4; ++j) {
+        for (int i = 0; i < 4; ++i) {
+            s += texture(uSource, vUp + vec2(float(2 * i - 3), float(2 * j - 3)) * uSourceTexel).rgb;
+        }
+    }
+    fragColor = vec4(s * 0.0625, 1.0);
+}
+"""
+            /** Same-size pass: BloomTail's kernel (keep the two in step), edges clamped by the sampler. */
+            const val TAIL_SCATTER = """#version 300 es
+precision highp float;
+uniform sampler2D uSource;
+uniform vec2 uSourceTexel;
+in vec2 vUp;
+out vec4 fragColor;
+void main() {
+    vec3 s = vec3(0.0);
+    float ws = 0.0;
+    for (int j = -6; j <= 6; ++j) {
+        for (int i = -6; i <= 6; ++i) {
+            float r2 = float(i * i + j * j);
+            float rim = 1.0 - r2 / 49.0;
+            if (rim <= 0.0) continue;
+            float w = pow(1.0 + sqrt(r2) / 0.6, -2.2) * rim * rim;
+            s += w * texture(uSource, vUp + vec2(i, j) * uSourceTexel).rgb;
+            ws += w;
+        }
+    }
+    fragColor = vec4(s / ws, 1.0);
 }
 """
         }
