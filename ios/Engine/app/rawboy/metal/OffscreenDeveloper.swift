@@ -15,6 +15,8 @@ final class OffscreenDeveloper {
     private let textures = DevelopTextures()
     private var inputTexture: MTLTexture?
     private var outputTexture: MTLTexture?
+    private let denoiser = WaveletDenoise()
+    private var uploads = 0
 
     /** Bytes per sample of render/renderPreview output: always 2 on Metal (Android may need 4). */
     let bytesPerSample = 2
@@ -47,7 +49,7 @@ final class OffscreenDeveloper {
         var geometry = SampleGeometry(textureWidth: inRect.width, textureHeight: inRect.height, input: inRect,
                                       output: out, imageWidth: imageWidth, imageHeight: imageHeight)
         geometry.minGrainPx = minGrainPx
-        try draw(params, geometry, image, out.width, out.height, output)
+        try draw(params, geometry, image, 1, out.width, out.height, output)
     }
 
     /**
@@ -66,12 +68,15 @@ final class OffscreenDeveloper {
         let out = PixelRect(x: 0, y: 0, width: params.lens.outputWidth, height: params.lens.outputHeight)
         let geometry = SampleGeometry(textureWidth: preview.width, textureHeight: preview.height, input: input,
                                       output: out, imageWidth: preview.fullWidth, imageHeight: preview.fullHeight)
-        try draw(params, geometry, image, width, height, output)
+        try draw(params, geometry, image, Float(preview.width) / Float(preview.fullWidth), width, height, output)
     }
 
-    /** Draws into a [width] x [height] target and reads it back. */
-    private func draw(_ params: ShaderParams, _ geometry: SampleGeometry, _ image: MTLTexture, _ width: Int,
-                      _ height: Int, _ output: UnsafeMutablePointer<UInt16>) throws {
+    /**
+     * Draws into a [width] x [height] target and reads it back; [pixelScale]: [image]'s texels per full-resolution
+     * pixel, for the denoise pre-pass.
+     */
+    private func draw(_ params: ShaderParams, _ geometry: SampleGeometry, _ image: MTLTexture, _ pixelScale: Float,
+                      _ width: Int, _ height: Int, _ output: UnsafeMutablePointer<UInt16>) throws {
         let target: MTLTexture
         if let t = outputTexture, t.width == width, t.height == height {
             target = t
@@ -86,12 +91,20 @@ final class OffscreenDeveloper {
         pass.colorAttachments[0].texture = target
         pass.colorAttachments[0].loadAction = .dontCare
         pass.colorAttachments[0].storeAction = .store
-        guard let commands = ctx.queue.makeCommandBuffer(),
-              let encoder = commands.makeRenderCommandEncoder(descriptor: pass) else {
+        guard let commands = ctx.queue.makeCommandBuffer() else {
             throw MetalError(message: "cannot encode the develop pass")
         }
-        DevelopProgram.draw(encoder, pipeline: ctx.exportPipeline, params: params, geometry: geometry, image: image,
-                            inputs: textures, flipY: true)
+        uploads += 1  // every render uploads new pixels
+        let denoised = WaveletDenoise.active(params.denoise, params.colorDenoise)
+        let input = denoised
+            ? denoiser.encode(commands, src: image, srcKey: uploads, pixelScale: pixelScale, denoise: params.denoise,
+                              colorDenoise: params.colorDenoise)
+            : image
+        guard let encoder = commands.makeRenderCommandEncoder(descriptor: pass) else {
+            throw MetalError(message: "cannot encode the develop pass")
+        }
+        DevelopProgram.draw(encoder, pipeline: ctx.exportPipeline, params: params, geometry: geometry, image: input,
+                            inputs: textures, flipY: true) { $0.float("uDenoisePre", denoised ? 1 : 0) }
         encoder.endEncoding()
         commands.commit()
         commands.waitUntilCompleted()

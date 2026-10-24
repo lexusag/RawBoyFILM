@@ -8,6 +8,7 @@ uniform float uSaturation;  // 1 = neutral
 uniform float uGamutSoft;   // 1 = purity-limited saturation + soft Rec.709 gamut compression, 0 = hard clipping
 uniform int uToneMapper;    // 0 = AgX, 1 = filmic, 2 = sigmoid
 uniform float uDisplaySource; // 1 = a JPEG/HEIC decoded by display_inverse.cpp: AgX per channel, no gamut compression
+uniform float uClipLevel;     // decoded value of blown highlights (DecodedImage::clipLevel), 0 = unknown
 uniform float uShadows;     // -1..1
 uniform float uHighlights;  // -1..1
 uniform float uBlacks;      // -1..1
@@ -16,6 +17,7 @@ uniform float uDenoise;     // 0..1: luma denoise
 uniform float uDenoiseWide; // 0..1: adds the coarse (multi-scale) luma denoise stage, for high ISO
 uniform float uColorDenoise;     // 0..1: chroma denoise
 uniform float uColorDenoiseWide; // 0..1: its coarse stage
+uniform float uDenoisePre;   // 1 = the wavelet pre-pass (WaveletDenoise) did luma and coarse chroma: only fine chroma here
 uniform float uGrain;       // 0..1
 uniform float uGrainSize;   // grain cell size in full-resolution pixels
 uniform float uGrainRoughness; // 0..1: grain strength varies in clumps (a coarser field modulates it)
@@ -248,6 +250,8 @@ vec3 unitHash(ivec2 cell, uint seed) {
 // chroma 7x7 at stride 6 (radius 18 px), for the low-frequency grain and colour blotches the fine stage can't reach.
 // Its range weights compare against the fine result, so edges the fine stage kept stay.
 // Each part has its own strength; with both equal this is the single denoise of before.
+// Where the wavelet pre-pass runs (WaveletDenoise: photos, exports; not the camera viewfinder, nor GPUs without float
+// render targets) it has already done luma and coarse chroma, and only the chroma stages run here (uDenoisePre).
 // The sparse stages don't sample a fixed lattice: every tap sits at a random point of its own cell (stratified,
 // seeded by the full-resolution pixel), read with bilinear filtering. On a fixed lattice at stride 6 neighbouring
 // pixels 6 px apart averaged almost the same samples, so the leftover colour noise took a 6 px grid pattern
@@ -266,6 +270,14 @@ vec2 jitteredTap(int i, int j, int n, float radius, ivec2 pixel, uint stage) {
     return (vec2(i, j) + r.xy - 0.5) * cell;
 }
 
+// Ratio chroma: a sample's chroma is scaled to the centre's luma level, (s - l) * (cl + k) / (l + k), so shading and
+// texture under strongly coloured light, which move every channel together, read as luma, not colour. As plain
+// differences they were smoothed as colour: under blue light a mono LUT showed the face as blotches.
+const float CHROMA_RATIO_K = 0.02;
+vec3 chromaOf(vec3 s, float l, float cl) {
+    return (s - l) * ((cl + CHROMA_RATIO_K) / (l + CHROMA_RATIO_K));
+}
+
 vec3 denoise(vec2 uv, vec2 fullPx, vec3 rgb) {
     vec3 c = sqrt(max(rgb, 0.0));
     float cl = (c.r + c.g + c.b) / 3.0;
@@ -282,7 +294,9 @@ vec3 denoise(vec2 uv, vec2 fullPx, vec3 rgb) {
     ivec2 pix = ivec2(floor(fullPx));
 
     float fineL = cl;
-    if (uDenoise > 0.0) {
+    // After the wavelet pre-pass only the fine chroma stage runs (the coarse ones stay, gated, for high strength).
+    bool lumaHere = uDenoisePre < 0.5;
+    if (uDenoise > 0.0 && lumaHere) {
         float lSum = 0.0;
         float lW = 0.0;
         for (int j = -2; j <= 2; ++j) {
@@ -307,17 +321,18 @@ vec3 denoise(vec2 uv, vec2 fullPx, vec3 rgb) {
                 vec2 o = jitteredTap(i, j, 3, 9.0, pix, 0x51ed00u);
                 vec3 s = sqrtSample(uv + o * px);
                 float l = (s.r + s.g + s.b) / 3.0;
-                vec3 dc = (s - l) - cc;
+                vec3 sc = chromaOf(s, l, cl);
+                vec3 dc = sc - cc;
                 float dl = l - cl;
                 float w = exp(-dot(o, o) / 72.0 - dl * dl * invLumaC * 0.5 - dot(dc, dc) * invChroma);
-                cSum += (s - l) * w;
+                cSum += sc * w;
                 cW += w;
             }
         }
         fineC = cSum / cW;
     }
 
-    if (uDenoiseWide > 0.0) {
+    if (uDenoiseWide > 0.0 && lumaHere) {
         float wlSum = 0.0;
         float wlW = 0.0;
         for (int j = -2; j <= 2; ++j) {
@@ -341,10 +356,11 @@ vec3 denoise(vec2 uv, vec2 fullPx, vec3 rgb) {
                 vec2 o = jitteredTap(i, j, 3, 18.0, pix, 0x9a3f00u);
                 vec3 s = sqrtSample(uv + o * px);
                 float l = (s.r + s.g + s.b) / 3.0;
-                vec3 dc = (s - l) - fineC;
+                vec3 sc = chromaOf(s, l, cl);
+                vec3 dc = sc - fineC;
                 float dl = l - fineL;
                 float w = exp(-dot(o, o) / 288.0 - dl * dl * invLumaC * 0.5 - dot(dc, dc) * invChroma);
-                wcSum += (s - l) * w;
+                wcSum += sc * w;
                 wcW += w;
             }
         }
@@ -370,10 +386,11 @@ vec3 denoise(vec2 uv, vec2 fullPx, vec3 rgb) {
             for (int i = -3; i <= 3; ++i) {
                 vec3 s = sqrt(max(texture(uBase, buv + vec2(i, j) * uBaseTexel).rgb, 0.0));
                 float l = (s.r + s.g + s.b) / 3.0;
-                vec3 dc = (s - l) - fineC;
+                vec3 sc = chromaOf(s, l, cl);
+                vec3 dc = sc - fineC;
                 float dl = l - fineL;
                 float w = exp(-float(i * i + j * j) * 0.16 - dl * dl * invLumaC - dot(dc, dc) * invChroma * 4.0);
-                bSum += (s - l) * w;
+                bSum += sc * w;
                 bW += w;
             }
         }
@@ -383,6 +400,8 @@ vec3 denoise(vec2 uv, vec2 fullPx, vec3 rgb) {
             fineC += bc * (uColorDenoiseWide * exp(-gb * gb));
         }
     }
+    // Ratio chroma was measured at the centre's luma: rescale it to the denoised luma.
+    fineC *= (fineL + CHROMA_RATIO_K) / (cl + CHROMA_RATIO_K);
     vec3 outSqrt = max(vec3(fineL) + fineC, 0.0);
     return outSqrt * outSqrt;
 }
@@ -719,13 +738,28 @@ vec3 applyLevels(vec3 c) {
     return mix(vec3(outBlack), vec3(outWhite), c);
 }
 
+// White balance [wb] (a re-balance from the as-shot white) on [c]. The decoder blends blown highlights to neutral at
+// the as-shot white, so a re-balance would tint them with the opposite of the cast it takes out: neutralising an
+// infrared photo turned its blown highlights yellow-green. Towards the clip level ([clipped] 0..1) that tint is
+// divided back out, so they stay white as when white balance is set before clipping (in the raw).
+vec3 balanceWhite(mat3 wb, vec3 c, float clipped) {
+    vec3 b = wb * c;
+    if (clipped > 0.0) {
+        vec3 white = wb * vec3(1.0);
+        b /= mix(vec3(1.0), white / max(dot(white, LUMA_REC2020), 1e-6), clipped);
+    }
+    return max(b, 0.0);
+}
+
 vec3 develop(vec3 c, vec2 fullPx, float lm[MAX_LAYERS]) {
-    c = max(uWhiteBalance * c, 0.0) * uExposure;
+    // All channels near the clip level: a blown highlight (with one channel clipped the lowest is about half of it).
+    float clipped = uClipLevel > 0.0 ? smoothstep(0.5, 1.0, min(min(c.r, c.g), c.b) / uClipLevel) : 0.0;
+    c = balanceWhite(uWhiteBalance, c, clipped) * uExposure;
     float layerEv = 0.0, layerContrast = 0.0, layerHighlights = 0.0, layerShadows = 0.0, layerSat = 1.0;
     for (int i = 0; i < uLayerCount; ++i) {
         float m = lm[i];
         if (m <= 0.0) continue;
-        c = mix(c, max(uLayerWb[i] * c, 0.0), m);
+        c = mix(c, balanceWhite(uLayerWb[i], c, clipped), m);
         vec4 t = uLayerTone[i];
         layerEv += m * t.x;
         layerContrast += m * t.y;

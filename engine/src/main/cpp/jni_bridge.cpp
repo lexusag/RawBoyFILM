@@ -148,6 +148,10 @@ JNIEXPORT jfloat JNICALL Java_app_rawboy_raw_RawNative_baselineExposure(JNIEnv*,
     return fromHandle(handle)->baselineExposure;
 }
 
+JNIEXPORT jfloat JNICALL Java_app_rawboy_raw_RawNative_clipLevel(JNIEnv*, jclass, jlong handle) {
+    return fromHandle(handle)->clipLevel;
+}
+
 JNIEXPORT jstring JNICALL Java_app_rawboy_raw_RawNative_make(JNIEnv* env, jclass, jlong handle) {
     return env->NewStringUTF(fromHandle(handle)->metadata.make.c_str());
 }

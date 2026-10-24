@@ -38,6 +38,9 @@ internal class OffscreenDeveloper(
     private val inputTexture: Int
     private val outputTexture: Int
     private val framebuffer: Int
+    private val denoiser: WaveletDenoise
+    private var uploads = 0
+    private var denoisedInput = false
 
     init {
         val version = IntArray(2)
@@ -85,6 +88,7 @@ internal class OffscreenDeveloper(
         val ids = IntArray(1)
         GLES30.glGenFramebuffers(1, ids, 0)
         framebuffer = ids[0]
+        denoiser = WaveletDenoise(quad, GLES30.GL_NEAREST)
         GLES30.glDisable(GLES30.GL_BLEND)
         GLES30.glDisable(GLES30.GL_DITHER)
     }
@@ -125,7 +129,7 @@ internal class OffscreenDeveloper(
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, inputTexture)
         GlUtil.uploadHalfRgb(inRect.width, inRect.height, input)
         val geometry = SampleGeometry(inRect.width, inRect.height, inRect, out, imageWidth, imageHeight, minGrainPx)
-        draw(params, geometry, out.width, out.height, output)
+        draw(params, geometry, out.width, out.height, output, denoised(params, inRect.width, inRect.height, 1f))
     }
 
     /**
@@ -140,7 +144,7 @@ internal class OffscreenDeveloper(
         val input = PixelRect(0, 0, preview.fullWidth, preview.fullHeight)
         val out = PixelRect(0, 0, params.lens.outputWidth, params.lens.outputHeight)
         val geometry = SampleGeometry(preview.width, preview.height, input, out, preview.fullWidth, preview.fullHeight)
-        draw(params, geometry, width, height, output)
+        draw(params, geometry, width, height, output, denoised(params, preview.width, preview.height, preview.width.toFloat() / preview.fullWidth))
     }
 
     private fun bindInputs(params: ShaderParams) {
@@ -155,8 +159,16 @@ internal class OffscreenDeveloper(
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
     }
 
-    /** Draws with the input texture bound on unit 0 into a [width] x [height] target and reads it back. */
-    private fun draw(params: ShaderParams, geometry: SampleGeometry, width: Int, height: Int, output: ByteBuffer) {
+    /** The input texture, or its copy through the wavelet denoise pre-pass when denoise is on (see WaveletDenoise). */
+    private fun denoised(p: ShaderParams, w: Int, h: Int, pixelScale: Float): Int {
+        uploads++ // every render uploads new pixels
+        denoisedInput = denoiser.active(p.denoise, p.colorDenoise)
+        if (!denoisedInput) return inputTexture
+        return denoiser.apply(inputTexture, uploads, w, h, pixelScale, p.denoise, p.colorDenoise)
+    }
+
+    /** Draws [input] on unit 0 into a [width] x [height] target and reads it back. */
+    private fun draw(params: ShaderParams, geometry: SampleGeometry, width: Int, height: Int, output: ByteBuffer, input: Int) {
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, outputTexture)
         GLES30.glTexImage2D(
             GLES30.GL_TEXTURE_2D, 0, GLES30.GL_RGBA16UI, width, height, 0,
@@ -170,8 +182,9 @@ internal class OffscreenDeveloper(
         check(status == GLES30.GL_FRAMEBUFFER_COMPLETE) { "Framebuffer incomplete: 0x${status.toString(16)}" }
 
         GLES30.glViewport(0, 0, width, height)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, inputTexture)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, input)
         program.bind(params, geometry, 1f, 1f, flipY = false) // framebuffer row 0 = output row 0
+        program.setDenoisePre(denoisedInput)
         quad.draw()
 
         if (shortSamples == null) shortSamples = readsShorts()
@@ -187,6 +200,7 @@ internal class OffscreenDeveloper(
     override fun close() {
         GLES30.glDeleteFramebuffers(1, intArrayOf(framebuffer), 0)
         GLES30.glDeleteTextures(2, intArrayOf(inputTexture, outputTexture), 0)
+        denoiser.release()
         quad.release()
         lutTexture.release()
         filmTextures.release()

@@ -388,7 +388,8 @@ public final class PhotoSession: ObservableObject {
         var retouch = 0
         if params.skinRetouch > 0, let mask = skin.mask, mask.hasSkin { retouch = Int(mask.sigmaPx * 2.4) + 4 }
         let wide = ShaderParams.wideDenoise(max(params.denoise, params.effectiveColorDenoise)) > 0 ? ShaderParams.wideDenoiseMargin : 0
-        return max(ZoomMath.halo, retouch, wide)
+        let prePass = max(params.denoise, params.effectiveColorDenoise) > 0 ? WaveletDenoise.margin : 0
+        return max(ZoomMath.halo, retouch, wide) + prePass
     }
 
     /** Lens geometry for [params] on the current image; cached while the lens sliders are unchanged. */
@@ -488,6 +489,7 @@ public final class PhotoSession: ObservableObject {
         p.temperature = Float(tt[0])
         p.tint = Float(tt[1])
         p.displaySource = image.displayReferred
+        p.clipLevel = image.clipLevel
         return p
     }
 

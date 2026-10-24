@@ -708,7 +708,7 @@ bool decodeWithLibRaw(const uint8_t* data, size_t size, DecodedImage& out, std::
     p.use_camera_matrix = 1;
     p.output_color = 0;     // camera RGB: lens gain maps apply per camera channel
     p.user_flip = 0;        // stay in sensor orientation; we rotate after lens shading
-    p.highlight = 2;        // blend clipped channels (keeps highlights neutral)
+    p.highlight = 1;        // unclipped; blown highlights are blended below, only near the clip (blendClipped)
     p.user_qual = 3;        // AHD demosaic (Markesteijn 3-pass for X-Trans)
 
     const auto t0 = std::chrono::steady_clock::now();
@@ -780,6 +780,10 @@ bool decodeWithLibRaw(const uint8_t* data, size_t size, DecodedImage& out, std::
     float blackOut[3] = {0, 0, 0};
     if (extraBlack != 0.0f)
         for (int c = 0; c < 3; ++c) blackOut[c] = extraBlack * 65535.0f * color.pre_mul[c];
+    // Each channel's output at the sensor's clip (pre_mul is normalised to its largest, which reaches 65535).
+    float clip[3];
+    for (int c = 0; c < 3; ++c) clip[c] = 65535.0f * color.pre_mul[c] - blackOut[c];
+    out.clipLevel = (clip[0] + clip[1] + clip[2]) / 3.0f * scale;
 
     // Embedded DNG lens corrections. Gain maps (lens + colour shading) are applied
     // per camera channel here; the GPU can take the luminance part back out.
@@ -811,6 +815,7 @@ bool decodeWithLibRaw(const uint8_t* data, size_t size, DecodedImage& out, std::
             uint16_t* o = out.rgb.data() + dest.start;
             for (int x = 0; x < w; ++x, in += 3, o += dest.step) {
                 float cam[3] = {float(in[0]) - blackOut[0], float(in[1]) - blackOut[1], float(in[2]) - blackOut[2]};
+                blendClipped(cam, clip);
                 for (int c = 0; c < 3; ++c)
                     if (!gains[c].empty()) cam[c] *= gains[c].gain(rows[c], x);
                 o[0] = floatToHalf(m[0] * cam[0] + m[1] * cam[1] + m[2] * cam[2]);

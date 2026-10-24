@@ -65,4 +65,29 @@ inline Mat3 bradfordAdaptation(const Vec3& srcWhite, const Vec3& dstWhite) {
     return multiply(inv, multiply(scale, kBradford));
 }
 
+/**
+ * Highlight blending (dcraw's blend_highlights) for one white balanced camera RGB pixel [c], where [clip] holds each
+ * channel's value at the sensor's clip. Near clip the pixel keeps its lightness (channel sum) and hue but takes the
+ * chroma of a copy clipped at the lowest of [clip], so a blown highlight comes out neutral (at the mean of [clip]).
+ * Only pixels with a channel within 10% of its own clip are touched: dcraw blends wherever a channel passes the
+ * lowest clip, which with very unequal multipliers (infrared: blue x3.7) took the colour out of bright light that
+ * hadn't clipped at all.
+ */
+inline void blendClipped(float c[3], const float clip[3]) {
+    const float r = std::fmax(c[0] / clip[0], std::fmax(c[1] / clip[1], c[2] / clip[2]));
+    if (!(r > 0.9f)) return;
+    const float u = std::fmin(1.0f, (r - 0.9f) / 0.1f);
+    const float t = u * u * (3.0f - 2.0f * u);
+    const float lowest = std::fmin(clip[0], std::fmin(clip[1], clip[2]));
+    const float k[3] = {std::fmin(c[0], lowest), std::fmin(c[1], lowest), std::fmin(c[2], lowest)};
+    // Lightness and two opponent axes (dcraw's trans matrix for three colours).
+    const float a0 = 1.7320508f * (c[0] - c[1]), b0 = 2.0f * c[2] - c[0] - c[1];
+    const float a1 = 1.7320508f * (k[0] - k[1]), b1 = 2.0f * k[2] - k[0] - k[1];
+    const float s0 = a0 * a0 + b0 * b0;
+    const float ratio = s0 > 0.0f ? std::sqrt((a1 * a1 + b1 * b1) / s0) : 1.0f;
+    const float l = (c[0] + c[1] + c[2]) / 3.0f, a = a0 * ratio / 3.0f, b = b0 * ratio / 3.0f;
+    const float blended[3] = {l + 0.8660254f * a - 0.5f * b, l - 0.8660254f * a - 0.5f * b, l + b};
+    for (int i = 0; i < 3; ++i) c[i] += (blended[i] - c[i]) * t;
+}
+
 }  // namespace rawboy

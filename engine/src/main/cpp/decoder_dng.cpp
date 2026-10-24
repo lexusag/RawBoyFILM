@@ -129,6 +129,7 @@ bool decodeWithDngSdk(const uint8_t* data, size_t size, DecodedImage& out, std::
         out.rgb.resize(static_cast<size_t>(w) * h * 3);
 
         if (planes == 1) {
+            out.clipLevel = exposure;
             for (size_t i = 0, n = static_cast<size_t>(w) * h; i < n; ++i) {
                 const uint16_t v = floatToHalf(std::min(cam[i], 1.0f) * exposure);
                 out.rgb[i * 3] = out.rgb[i * 3 + 1] = out.rgb[i * 3 + 2] = v;
@@ -156,15 +157,22 @@ bool decodeWithDngSdk(const uint8_t* data, size_t size, DecodedImage& out, std::
             for (int r = 0; r < 3; ++r)
                 for (int c = 0; c < 3; ++c) m[r * 3 + c] = static_cast<float>(camToRec2020.m[r][c]) * exposure;
 
-            // Clip each channel at the camera white so blown highlights stay neutral.
+            // Blown highlights are blended to neutral in white balanced camera RGB, where the camera white is 1 and
+            // channel c clips at 1 / white[c]. Clipping each channel at the camera white instead cut every channel
+            // with a high multiplier at a fraction of its range: in an infrared photo (blue x3.7) bright light lost
+            // its blue and blown highlights went flat yellow.
             const dng_vector& camWhite = spec->CameraWhite();
-            const float clip[3] = {static_cast<float>(camWhite[0]), static_cast<float>(camWhite[1]),
+            const float camW[3] = {static_cast<float>(camWhite[0]), static_cast<float>(camWhite[1]),
                                    static_cast<float>(camWhite[2])};
+            const float clip[3] = {1.0f / camW[0], 1.0f / camW[1], 1.0f / camW[2]};
+            out.clipLevel = (clip[0] + clip[1] + clip[2]) / 3.0f * exposure;
 
             for (size_t i = 0, n = static_cast<size_t>(w) * h; i < n; ++i) {
-                const float r = std::min(cam[i * 3], clip[0]);
-                const float g = std::min(cam[i * 3 + 1], clip[1]);
-                const float b = std::min(cam[i * 3 + 2], clip[2]);
+                float c[3] = {cam[i * 3] * clip[0], cam[i * 3 + 1] * clip[1], cam[i * 3 + 2] * clip[2]};
+                blendClipped(c, clip);
+                const float r = c[0] * camW[0];
+                const float g = c[1] * camW[1];
+                const float b = c[2] * camW[2];
                 out.rgb[i * 3] = floatToHalf(m[0] * r + m[1] * g + m[2] * b);
                 out.rgb[i * 3 + 1] = floatToHalf(m[3] * r + m[4] * g + m[5] * b);
                 out.rgb[i * 3 + 2] = floatToHalf(m[6] * r + m[7] * g + m[8] * b);

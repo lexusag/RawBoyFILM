@@ -74,6 +74,8 @@ class ShaderParams(
     val halation: Float = 1f,
     /** `uCurve`: DevelopParams.curves as [app.rawboy.develop.ToneCurves.table], or null when they are all the identity. */
     val curve: FloatArray? = null,
+    /** `uClipLevel`: DevelopParams.clipLevel of the as-shot defaults (blown highlights), 0 = unknown. */
+    val clipLevel: Float = 0f,
 ) {
     /**
      * Extra source pixels needed around an output region for the spatial effects
@@ -83,7 +85,9 @@ class ShaderParams(
         get() {
             val retouch = if (skinRetouch > 0f && skinMask?.hasSkin == true) (skinMask.sigmaPx * 2.4f).toInt() + 4 else 0
             val wide = if (denoiseWide > 0f || colorDenoiseWide > 0f) WIDE_DENOISE_MARGIN else 0
-            return maxOf(ZoomMath.HALO, retouch, wide)
+            // The wavelet denoise pre-pass runs before the shader, so its reach adds to the shader's.
+            val prePass = if (denoise > 0f || colorDenoise > 0f) WaveletDenoise.MARGIN else 0
+            return maxOf(ZoomMath.HALO, retouch, wide) + prePass
         }
 
     companion object {
@@ -170,6 +174,7 @@ class ShaderParams(
                 filmGrain = p.filmGrain / 100f,
                 halation = p.halation / 100f,
                 curve = p.curves.table(),
+                clipLevel = asShot.clipLevel,
             )
         }
 

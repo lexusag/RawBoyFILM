@@ -43,7 +43,7 @@ struct PhotoMetadata {
 // Scene-referred image handed to the GPU pipeline.
 // Pixels are interleaved RGB half floats in linear Rec.2020 (D65), already
 // white balanced for the as-shot illuminant and oriented for display.
-// 1.0 is the sensor clipping level.
+// Roughly 1.0 is the sensor clipping level; clipLevel has the exact value of blown highlights.
 struct DecodedImage {
     int width = 0;
     int height = 0;
@@ -57,6 +57,9 @@ struct DecodedImage {
     // DNG BaselineExposure in EV, already applied to rgb; NaN if the file has none. Phones store their own auto
     // exposure decision here (the raw itself is exposed to protect highlights).
     float baselineExposure = NAN;
+    // Value of a photosite clipped in every channel, in rgb's units (blown highlights are blended to this neutral,
+    // see blendClipped); the shader keeps them neutral under other white balances (uClipLevel). 0 = unknown.
+    float clipLevel = 0;
     PhotoMetadata metadata;
 
     // Geometry before orientation, so sensor-space lens corrections can be mapped.

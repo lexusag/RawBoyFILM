@@ -40,6 +40,9 @@ class RawImage private constructor(private var handle: Long) : AutoCloseable {
     /** DNG BaselineExposure in EV, already applied to the pixels; NaN if the file has none. */
     val baselineExposure: Float = RawNative.baselineExposure(handle)
 
+    /** Pixel value of blown highlights (clipped in every channel), 0 if unknown (see DevelopParams.clipLevel). */
+    val clipLevel: Float = RawNative.clipLevel(handle)
+
     /** Camera maker from the file's metadata, empty if unknown. */
     val make: String = RawNative.make(handle)
 

@@ -231,6 +231,7 @@ struct DevelopProgram {
         u.float("uGamutSoft", p.gamutSoft)
         u.int("uToneMapper", p.toneMapper)
         u.float("uDisplaySource", p.displaySource)
+        u.float("uClipLevel", p.clipLevel)
         u.float("uShadows", p.shadows)
         u.float("uHighlights", p.highlights)
         u.float("uBlacks", p.blacks)

@@ -92,6 +92,11 @@ data class DevelopParams(
      * a photo's as-shot defaults, from the decoder; never a slider or preset value.
      */
     val displaySource: Boolean = false,
+    /**
+     * Pixel value of the photo's blown highlights (RawImage.clipLevel), which white balance changes leave neutral
+     * (`uClipLevel`); 0 = unknown. Set only on a photo's as-shot defaults, from the decoder, like [displaySource].
+     */
+    val clipLevel: Float = 0f,
 ) {
     /** The colour denoise in effect: [colorDenoise], or [denoise] while it isn't set. */
     val effectiveColorDenoise: Float get() = colorDenoise ?: denoise
