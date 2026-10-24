@@ -109,8 +109,13 @@ public enum Looks {
  * retouch on the portrait films. Mirrors Android's FilmLooks.
  */
 public enum FilmLooks {
+    /** Auto's film grain, a little finer than the stock's own (100). */
+    public static let filmGrain: Float = 80
+
     private static func stock(_ id: String, _ name: String, portraitRetouch: Float = 0) -> Look {
-        Look(id, name, nil, portraitRetouch: portraitRetouch, film: id)
+        var look = Look(id, name, nil, portraitRetouch: portraitRetouch, film: id)
+        look.filmGrain = filmGrain
+        return look
     }
 
     public static let portra400 = stock("portra400", "Yellow Portrait 400", portraitRetouch: 20)

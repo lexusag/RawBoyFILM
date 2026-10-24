@@ -33,6 +33,9 @@ public final class DevelopRenderer: NSObject, MTKViewDelegate {
     private var previewTexture: MTLTexture?
     private var uploadedImage: [UInt16]?
     private var uploadedDetail: DetailTile?
+    private let denoiser = WaveletDenoise()
+    /** Bumped on each preview upload: the denoise pre-pass caches by it. */
+    private var previewVersion = 0
 
     public var image: PreviewImage?
     public var detail: DetailTile?
@@ -75,20 +78,37 @@ public final class DevelopRenderer: NSObject, MTKViewDelegate {
                 DevelopTextures.halfRgbTexture(img.width, img.height, $0.baseAddress!, reuse: previewTexture)
             }
             uploadedImage = img.pixels
+            previewVersion += 1
         }
         uploadedDetail = detail
 
         guard let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
-              let commands = ctx.queue.makeCommandBuffer(),
-              let encoder = commands.makeRenderCommandEncoder(descriptor: pass) else { return }
+              let commands = ctx.queue.makeCommandBuffer() else { return }
+        // The denoise pre-pass renders into its own targets, so it is encoded before the view's pass.
+        var source: MTLTexture?
+        var denoised = false
+        if let p = params, image != nil, let preview = previewTexture {
+            let zoomed = zoomCenter != nil && uploadedDetail != nil
+            let texture = zoomed ? uploadedDetail!.texture : preview
+            source = texture
+            if WaveletDenoise.active(p.denoise, p.colorDenoise) {
+                let key: AnyHashable = zoomed ? "tile" : AnyHashable(previewVersion)
+                let scale = zoomed ? 1 : Float(preview.width) / Float(image!.fullWidth)
+                source = denoiser.encode(commands, src: texture, srcKey: key, pixelScale: scale,
+                                         denoise: p.denoise, colorDenoise: p.colorDenoise)
+                denoised = true
+            }
+        }
+        guard let encoder = commands.makeRenderCommandEncoder(descriptor: pass) else { return }
         let viewWidth = max(1, Int(view.drawableSize.width))
         let viewHeight = max(1, Int(view.drawableSize.height))
-        if let p = params, let img = image, let preview = previewTexture {
+        if let p = params, let img = image, let input = source {
             textures.bind(p)
+            let configure = uniforms(denoised: denoised)
             if let center = zoomCenter, let tile = uploadedDetail {
-                drawZoomed(encoder, p, img, tile, tile.texture, center, viewWidth, viewHeight)
+                drawZoomed(encoder, p, img, tile, input, center, viewWidth, viewHeight, configure)
             } else {
-                drawFit(encoder, p, img, preview, viewWidth, viewHeight)
+                drawFit(encoder, p, img, input, viewWidth, viewHeight, configure)
             }
         }
         encoder.endEncoding()
@@ -97,7 +117,8 @@ public final class DevelopRenderer: NSObject, MTKViewDelegate {
     }
 
     private func drawFit(_ encoder: MTLRenderCommandEncoder, _ p: ShaderParams, _ img: PreviewImage,
-                         _ preview: MTLTexture, _ viewWidth: Int, _ viewHeight: Int) {
+                         _ preview: MTLTexture, _ viewWidth: Int, _ viewHeight: Int,
+                         _ configure: @escaping (inout UniformBlock) -> Void) {
         let outW = p.lens.outputWidth
         let outH = p.lens.outputHeight
         let frame = frameWidth
@@ -127,12 +148,12 @@ public final class DevelopRenderer: NSObject, MTKViewDelegate {
                                       imageWidth: img.fullWidth, imageHeight: img.fullHeight)
         // flipY as on Android: in both GL and Metal, clip-space +y is the top of the screen.
         DevelopProgram.draw(encoder, pipeline: ctx.previewPipeline, params: p, geometry: geometry, image: preview,
-                            inputs: textures, scaleX: sx, scaleY: sy, flipY: true, configure: clipUniform)
+                            inputs: textures, scaleX: sx, scaleY: sy, flipY: true, configure: configure)
     }
 
     private func drawZoomed(_ encoder: MTLRenderCommandEncoder, _ p: ShaderParams, _ img: PreviewImage,
                             _ tile: DetailTile, _ texture: MTLTexture, _ center: (Float, Float), _ viewWidth: Int,
-                            _ viewHeight: Int) {
+                            _ viewHeight: Int, _ configure: @escaping (inout UniformBlock) -> Void) {
         let t = tile.rect
         // Output = what's on screen; input = the loaded full-resolution tile. If the
         // lens moves pixels outside the tile while a new one loads, edges smear briefly.
@@ -142,12 +163,17 @@ public final class DevelopRenderer: NSObject, MTKViewDelegate {
                                       imageWidth: img.fullWidth, imageHeight: img.fullHeight)
         DevelopProgram.draw(encoder, pipeline: ctx.previewPipeline, params: p, geometry: geometry, image: texture,
                             inputs: textures, scaleX: Float(view.width) / Float(viewWidth),
-                            scaleY: Float(view.height) / Float(viewHeight), flipY: true, configure: clipUniform)
+                            scaleY: Float(view.height) / Float(viewHeight), flipY: true, configure: configure)
     }
 
-    private var clipUniform: (inout UniformBlock) -> Void {
+    /** Preview-only uniforms: the clip warning, and whether the image went through the denoise pre-pass. */
+    private func uniforms(denoised: Bool) -> (inout UniformBlock) -> Void {
         let on: Float = clipWarning ? 1 : 0
-        return { $0.float("uClipWarn", on) }
+        let pre: Float = denoised ? 1 : 0
+        return {
+            $0.float("uClipWarn", on)
+            $0.float("uDenoisePre", pre)
+        }
     }
 
     private static func same(_ a: [UInt16], _ b: [UInt16]) -> Bool {

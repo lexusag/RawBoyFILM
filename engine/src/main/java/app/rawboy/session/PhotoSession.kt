@@ -22,6 +22,7 @@ import app.rawboy.gl.BloomTail
 import app.rawboy.gl.DetailTile
 import app.rawboy.gl.PreviewImage
 import app.rawboy.gl.ShaderParams
+import app.rawboy.gl.WaveletDenoise
 import app.rawboy.gl.ZoomMath
 import app.rawboy.lens.LensInfo
 import app.rawboy.lens.LensTransform
@@ -417,7 +418,8 @@ class PhotoSession(
         val mask = (_skin.value as? SkinState.Ready)?.mask
         val retouch = if (params.skinRetouch > 0f && mask?.hasSkin == true) (mask.sigmaPx * 2.4f).toInt() + 4 else 0
         val wide = if (ShaderParams.wideDenoise(maxOf(params.denoise, params.effectiveColorDenoise)) > 0f) ShaderParams.WIDE_DENOISE_MARGIN else 0
-        return maxOf(ZoomMath.HALO, retouch, wide)
+        val prePass = if (maxOf(params.denoise, params.effectiveColorDenoise) > 0f) WaveletDenoise.MARGIN else 0
+        return maxOf(ZoomMath.HALO, retouch, wide) + prePass
     }
 
     private var lensCache: Triple<List<Any>, CropRect, LensTransform>? = null
@@ -527,7 +529,10 @@ class PhotoSession(
         fun asShotDefaults(image: RawImage): DevelopParams {
             val white = image.asShotWhite
             val (kelvin, tint) = WhiteBalance.tempTintFromXY(white[0], white[1]).let { it[0] to it[1] }
-            return DevelopParams(temperature = kelvin.toFloat(), tint = tint.toFloat(), displaySource = image.displayReferred)
+            return DevelopParams(
+                temperature = kelvin.toFloat(), tint = tint.toFloat(), displaySource = image.displayReferred,
+                clipLevel = image.clipLevel,
+            )
         }
 
         /** The highlight-boosted halo (512 px) and tail (64 px, already scattered) copies bloom scatters light from. */

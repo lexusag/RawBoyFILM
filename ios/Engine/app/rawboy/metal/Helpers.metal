@@ -117,3 +117,89 @@ fragment float4 tailScatterFragment(PassOut in [[stage_in]], texture2d<float> so
     }
     return float4(sum / ws, 1.0);
 }
+
+// ---- Wavelet denoise pre-pass (WaveletDenoise.swift). Hand ports of <repo>/shaders/denoise_*.frag (the source of
+// truth, used by Android and the web): keep them in step. Texels are addressed by position; Metal's row 0 is the top
+// in every pass, so they agree with each other as GL's bottom-up rows do. ----
+
+struct DenoiseSplit {
+    float k;       // ratio chroma offset
+    float offset;  // c of sqrt(x + c)
+};
+
+fragment float4 denoiseSplitFragment(PassOut in [[stage_in]], texture2d<float> src [[texture(0)]],
+                                     constant DenoiseSplit& u [[buffer(0)]]) {
+    float3 c = sqrt(max(src.read(uint2(in.position.xy)).rgb + u.offset, 0.0));
+    float l = (c.r + c.g + c.b) / 3.0;
+    return float4(l, (c.r - l) / (l + u.k), (c.b - l) / (l + u.k), 0.0);
+}
+
+struct DenoiseLevelOut {
+    float4 low [[color(0)]];
+    float4 detail [[color(1)]];
+};
+
+fragment DenoiseLevelOut denoiseLevelFragment(PassOut in [[stage_in]], texture2d<float> low [[texture(0)]],
+                                              constant int& stride [[buffer(0)]]) {
+    int2 p = int2(in.position.xy);
+    int2 hi = int2(low.get_width(), low.get_height()) - 1;
+    const float k[5] = {0.0625, 0.25, 0.375, 0.25, 0.0625};
+    float4 s = 0.0;
+    for (int j = 0; j < 5; ++j) {
+        for (int i = 0; i < 5; ++i) {
+            s += k[i] * k[j] * low.read(uint2(clamp(p + int2(i - 2, j - 2) * stride, int2(0), hi)));
+        }
+    }
+    DenoiseLevelOut o;
+    o.low = s;
+    o.detail = float4(low.read(uint2(p)).xyz - s.xyz, s.x);
+    return o;
+}
+
+struct DenoiseShrink {
+    float lumaThreshold;
+    float chromaThreshold;  // sqrt units, divided by L + k here; 0 = keep
+    float k;
+    float offset;
+    float keep;
+    float keepC;
+    int stride;
+    int first;
+};
+
+fragment float4 denoiseShrinkFragment(PassOut in [[stage_in]], texture2d<float> detail [[texture(0)]],
+                                      texture2d<float> acc [[texture(1)]], constant DenoiseShrink& u [[buffer(0)]]) {
+    int2 p = int2(in.position.xy);
+    int2 hi = int2(detail.get_width(), detail.get_height()) - 1;
+    float4 d = detail.read(uint2(p));
+    float el = 0.0, ec = 0.0, w = 0.0;
+    for (int j = -1; j <= 1; ++j) {
+        for (int i = -1; i <= 1; ++i) {
+            float4 n = detail.read(uint2(clamp(p + int2(i, j) * u.stride, int2(0), hi)));
+            float wt = (i == 0 && j == 0) ? 2.0 : 1.0;
+            el += wt * n.x * n.x;
+            ec += wt * dot(n.yz, n.yz);
+            w += wt;
+        }
+    }
+    el /= w;
+    ec /= w;
+    float x = max(d.w * d.w - u.offset, 0.0);
+    float slope = sqrt((x + 0.25 * u.offset) / (x + u.offset));
+    float tl = u.lumaThreshold * slope;
+    float tc = u.chromaThreshold * slope / (max(d.w, 0.0) + u.k);
+    float fl = max(1.0 - tl * tl / max(el, 1e-20), 0.0);
+    float fc = max(1.0 - tc * tc / max(ec, 1e-20), 0.0);
+    fc = max(fc, fl);
+    float4 a = u.first == 1 ? float4(0.0) : acc.read(uint2(p));
+    return a + float4(d.x * mix(fl, 1.0, u.keep), d.yz * mix(fc, 1.0, u.keepC), 0.0);
+}
+
+fragment float4 denoiseMergeFragment(PassOut in [[stage_in]], texture2d<float> low [[texture(0)]],
+                                     texture2d<float> acc [[texture(1)]], constant DenoiseSplit& u [[buffer(0)]]) {
+    uint2 p = uint2(in.position.xy);
+    float4 v = low.read(p) + acc.read(p);
+    float m = max(v.x, 0.0) + u.k;
+    float3 c = max(float3(v.x + v.y * m, v.x - (v.y + v.z) * m, v.x + v.z * m), 0.0);
+    return float4(max(c * c - u.offset, 0.0), 1.0);
+}

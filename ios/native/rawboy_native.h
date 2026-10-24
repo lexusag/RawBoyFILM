@@ -67,6 +67,8 @@ RB_API void rb_as_shot_white(const RBImage* image, double* out);
 RB_API float rb_iso(const RBImage* image);
 /** DNG BaselineExposure in EV (already applied), NaN when the file has none. */
 RB_API float rb_baseline_exposure(const RBImage* image);
+/** Value of a photosite clipped in every channel (blown highlights), 0 when unknown (see DecodedImage::clipLevel). */
+RB_API float rb_clip_level(const RBImage* image);
 RB_API const char* rb_camera(const RBImage* image);
 RB_API const char* rb_decoder(const RBImage* image);
 RB_API const char* rb_lens_name(const RBImage* image);

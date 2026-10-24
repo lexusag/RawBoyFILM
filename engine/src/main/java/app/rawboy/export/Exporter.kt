@@ -3,12 +3,14 @@ package app.rawboy.export
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.exifinterface.media.ExifInterface
 import app.rawboy.gl.OffscreenDeveloper
 import app.rawboy.gl.PixelRect
 import app.rawboy.gl.ShaderParams
 import app.rawboy.raw.RawImage
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -232,13 +234,39 @@ class Exporter(private val context: Context) {
 
     /** The source's EXIF for TIFFs, which ExifInterface can't write: TiffWriter puts it in the header. Best effort. */
     private fun readExif(source: Uri): ExifMetadata? = runCatching {
-        context.contentResolver.openFileDescriptor(source, "r")?.use { pfd -> ExifMetadata.from(ExifInterface(pfd.fileDescriptor)) }
+        context.contentResolver.openFileDescriptor(source, "r")?.use { pfd ->
+            val m = ExifMetadata.from(ExifInterface(pfd.fileDescriptor))
+            readTiffEp(pfd)?.fill(m) ?: m
+        }
+    }.getOrNull()
+
+    /** The source's IFD0 shooting tags (DngCreator's DNGs), which ExifInterface skips; null if it isn't a TIFF. */
+    private fun readTiffEp(pfd: ParcelFileDescriptor): TiffEpTags? = runCatching {
+        val channel = FileInputStream(pfd.fileDescriptor).channel
+        TiffEpTags.read { offset, length ->
+            val buf = ByteBuffer.allocate(length)
+            while (buf.hasRemaining() && channel.read(buf, offset + buf.position()) > 0) Unit
+            buf.array().copyOf(buf.position())
+        }
     }.getOrNull()
 
     private fun copyExif(source: Uri, target: Uri) {
         runCatching {
             val input = context.contentResolver.openFileDescriptor(source, "r")?.use { pfd ->
-                ExifInterface(pfd.fileDescriptor).let { exif -> EXIF_TAGS.associateWith { exif.getAttribute(it) } }
+                val exif = ExifInterface(pfd.fileDescriptor)
+                val tags = EXIF_TAGS.associateWith { exif.getAttribute(it)?.takeIf(String::isNotBlank) }
+                readTiffEp(pfd)?.let { ep ->
+                    fun r(v: Pair<Long, Long>?) = v?.let { "${it.first}/${it.second}" }
+                    val fallback = mapOf(
+                        ExifInterface.TAG_EXPOSURE_TIME to r(ep.exposureTime),
+                        ExifInterface.TAG_F_NUMBER to r(ep.fNumber),
+                        ExifInterface.TAG_FOCAL_LENGTH to r(ep.focalLength),
+                        ExifInterface.TAG_EXPOSURE_BIAS_VALUE to r(ep.exposureBias),
+                        ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY to ep.iso?.toString(),
+                        ExifInterface.TAG_DATETIME_ORIGINAL to ep.dateTimeOriginal,
+                    )
+                    tags.mapValues { (tag, value) -> value ?: fallback[tag] }
+                } ?: tags
             } ?: return
             context.contentResolver.openFileDescriptor(target, "rw")?.use { pfd ->
                 val exif = ExifInterface(pfd.fileDescriptor)

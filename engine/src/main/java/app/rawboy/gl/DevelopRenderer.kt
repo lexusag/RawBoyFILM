@@ -51,6 +51,12 @@ class DevelopRenderer : GLSurfaceView.Renderer {
     private var previewTexture = 0
     private var detailTexture = 0
     private var uploadedDetail: DetailTile? = null
+    private var denoiser: WaveletDenoise? = null
+
+    /** Upload counters: the denoise pre-pass caches by them. */
+    private var previewVersion = 0
+    private var detailVersion = 0
+    private var denoisedInput = false
     private var viewWidth = 1
     private var viewHeight = 1
 
@@ -79,6 +85,9 @@ class DevelopRenderer : GLSurfaceView.Renderer {
         previewTexture = GlUtil.createTexture(GLES30.GL_LINEAR)
         detailTexture = GlUtil.createTexture(GLES30.GL_NEAREST) // 1:1, keep pixels crisp
         uploadedDetail = null
+        denoiser = WaveletDenoise(quad!!, GLES30.GL_LINEAR)
+        previewVersion++
+        detailVersion++
         synchronized(lock) {
             imageDirty = true
             detailDirty = true
@@ -107,11 +116,13 @@ class DevelopRenderer : GLSurfaceView.Renderer {
         if (uploadImage && img != null) {
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, previewTexture)
             GlUtil.uploadHalfRgb(img.width, img.height, img.pixels)
+            previewVersion++
         }
         if (uploadDetail) {
             uploadedDetail = tile?.also {
                 GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, detailTexture)
                 GlUtil.uploadHalfRgb(it.rect.width, it.rect.height, it.pixels)
+                detailVersion++
             }
         }
 
@@ -137,6 +148,7 @@ class DevelopRenderer : GLSurfaceView.Renderer {
             drawFit(p, img)
         }
         program!!.setClipWarning(clipWarning)
+        program!!.setDenoisePre(denoisedInput)
         quad!!.draw()
     }
 
@@ -145,6 +157,7 @@ class DevelopRenderer : GLSurfaceView.Renderer {
         val outH = p.lens.outputHeight
         val frame = frameWidth
         val r = ZoomMath.fitRect(viewWidth, viewHeight, outW, outH, frame + margin)
+        val texture = denoised(p, previewTexture, "p$previewVersion", img.width, img.height, img.width.toFloat() / img.fullWidth)
 
         // Frame: a band of neutral grey / white / black around the photo, for judging exposure.
         if (frame > 0) {
@@ -161,7 +174,7 @@ class DevelopRenderer : GLSurfaceView.Renderer {
 
         val sx = r[2] / viewWidth
         val sy = r[3] / viewHeight
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, previewTexture)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, texture)
         val input = PixelRect(0, 0, img.fullWidth, img.fullHeight)
         val output = PixelRect(0, 0, outW, outH)
         val geometry = SampleGeometry(img.width, img.height, input, output, img.fullWidth, img.fullHeight)
@@ -175,7 +188,8 @@ class DevelopRenderer : GLSurfaceView.Renderer {
         val view = ZoomMath.viewRect(
             center.first, center.second, viewWidth, viewHeight, p.lens.outputWidth, p.lens.outputHeight,
         )
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, detailTexture)
+        val texture = denoised(p, detailTexture, "d$detailVersion", t.width, t.height, 1f)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, texture)
         val geometry = SampleGeometry(t.width, t.height, t, view, img.fullWidth, img.fullHeight)
         program!!.bind(
             p, geometry,
@@ -183,6 +197,16 @@ class DevelopRenderer : GLSurfaceView.Renderer {
             scaleY = view.height.toFloat() / viewHeight,
             flipY = true,
         )
+    }
+
+    /** [texture], or its copy through the wavelet denoise pre-pass when denoise is on (see WaveletDenoise). */
+    private fun denoised(p: ShaderParams, texture: Int, key: String, w: Int, h: Int, pixelScale: Float): Int {
+        val d = denoiser!!
+        denoisedInput = d.active(p.denoise, p.colorDenoise)
+        if (!denoisedInput) return texture
+        val out = d.apply(texture, key, w, h, pixelScale, p.denoise, p.colorDenoise)
+        GLES30.glViewport(0, 0, viewWidth, viewHeight)
+        return out
     }
 }
 

@@ -92,6 +92,11 @@ public struct DevelopParams: Equatable, Sendable {
      * a photo's as-shot defaults, from the decoder; never a slider or preset value.
      */
     public var displaySource = false
+    /**
+     * Pixel value of the photo's blown highlights (RawImage.clipLevel), which white balance changes leave neutral
+     * (`uClipLevel`); 0 = unknown. Set only on a photo's as-shot defaults, from the decoder, like displaySource.
+     */
+    public var clipLevel: Float = 0
 
     public init() {}
 

@@ -83,6 +83,7 @@ void rb_as_shot_white(const RBImage* image, double* out) {
 
 float rb_iso(const RBImage* image) { return image->image.iso; }
 float rb_baseline_exposure(const RBImage* image) { return image->image.baselineExposure; }
+float rb_clip_level(const RBImage* image) { return image->image.clipLevel; }
 const char* rb_camera(const RBImage* image) { return image->image.camera.c_str(); }
 const char* rb_decoder(const RBImage* image) { return image->image.decoder.c_str(); }
 const char* rb_lens_name(const RBImage* image) { return image->image.lensName.c_str(); }

@@ -79,8 +79,8 @@ class FilmStocksTest {
         val base = DevelopParams()
         fun grain(adjust: Float) =
             LookApplier.apply(base, FilmLooks.PORTRA_400, 100f, Adjustments(grain = adjust), hasFace = false).filmGrain
-        assertEquals(100f, grain(0f), 0f)
+        assertEquals(FilmLooks.FILM_GRAIN, grain(0f), 0f)
         assertEquals(0f, grain(-50f), 0f)
-        assertEquals(200f, grain(50f), 0f)
+        assertEquals(2 * FilmLooks.FILM_GRAIN, grain(50f), 1e-4f)
     }
 }

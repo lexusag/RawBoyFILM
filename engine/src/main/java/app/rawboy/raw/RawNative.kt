@@ -20,6 +20,7 @@ internal object RawNative {
     @JvmStatic external fun camera(handle: Long): String
     @JvmStatic external fun iso(handle: Long): Float
     @JvmStatic external fun baselineExposure(handle: Long): Float
+    @JvmStatic external fun clipLevel(handle: Long): Float
     @JvmStatic external fun make(handle: Long): String
     @JvmStatic external fun lensInfo(handle: Long): DoubleArray
     @JvmStatic external fun lensShading(handle: Long): FloatArray

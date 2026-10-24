@@ -36,6 +36,9 @@ public final class RawImage: @unchecked Sendable {
     /** DNG BaselineExposure in EV, already applied to the pixels; NaN if the file has none. */
     public let baselineExposure: Float
 
+    /** Pixel value of blown highlights (clipped in every channel), 0 if unknown (see DevelopParams.clipLevel). */
+    public let clipLevel: Float
+
     /** Camera maker from the file's metadata, empty if unknown. */
     public let make: String
 
@@ -59,6 +62,7 @@ public final class RawImage: @unchecked Sendable {
         description = "\(camera) · \(width)×\(height) · \(String(cString: rb_decoder(handle)))"
         iso = rb_iso(handle)
         baselineExposure = rb_baseline_exposure(handle)
+        clipLevel = rb_clip_level(handle)
         var m = RBMetadata()
         rb_metadata(handle, &m)
         metadata = PhotoMetadata(m)
